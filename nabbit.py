@@ -509,24 +509,29 @@ def score_with_ablang(sequences: List[str], device: str = 'cpu') -> pd.DataFrame
 
     log.info(f"Scoring {len(sequences)} sequences...")
 
-    # Get res-likelihoods (per-position amino acid probabilities)
+    # Get res-likelihoods (logits, shape: batch x seq_len+2 x 20)
     likelihoods = model(sequences, mode='likelihood')
 
+    # Build AA-to-column mapping: vocab indices 1-20 are the 20 amino acids
+    vocab = model.tokenizer.vocab_to_aa
+    aa_order = [vocab[i] for i in range(1, 21)]
+    aa_to_col = {aa: col for col, aa in enumerate(aa_order)}
+
+    # Convert logits to probabilities
+    from scipy.special import softmax
+    probs_all = softmax(likelihoods, axis=-1)
+
     rows = []
-    for i, (seq, lk) in enumerate(zip(sequences, likelihoods)):
-        # lk shape: (seq_len, vocab_size)
-        # Pseudo-perplexity: exp of mean negative log-likelihood of actual residues
-        vocab = model.tokenizer.vocab_to_aa  # mapping from token index to AA
-        aa_to_idx = {v: k for k, v in enumerate(vocab)}
+    for i, seq in enumerate(sequences):
+        probs = probs_all[i]  # shape: (seq_len+2, 20)
 
         log_probs = []
         for pos, aa in enumerate(seq):
-            if pos < len(lk):
-                idx = aa_to_idx.get(aa, None)
-                if idx is not None and idx < len(lk[pos]):
-                    prob = float(lk[pos][idx])
-                    if prob > 0:
-                        log_probs.append(np.log(prob))
+            col = aa_to_col.get(aa)
+            if col is not None and (pos + 1) < len(probs):
+                prob = float(probs[pos + 1][col])  # +1 to skip start token
+                if prob > 0:
+                    log_probs.append(np.log(prob))
 
         if log_probs:
             mean_nll = -np.mean(log_probs)
