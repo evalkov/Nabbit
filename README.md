@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="nabbit.svg" alt="Nabbit logo" width="200">
+</p>
+
 # Nabbit
 
 Nanobody NGS enrichment analysis pipeline for phage/yeast display selections from paired-end Illumina FASTQ data.
