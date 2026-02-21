@@ -1,6 +1,6 @@
-# Nanobody NGS Enrichment Pipeline v2.0
+# Nabbit
 
-Analyze nanobody phage/yeast display selection from paired-end Illumina fastq.gz.
+Nanobody NGS enrichment analysis pipeline for phage/yeast display selection from paired-end Illumina fastq.gz.
 
 ## What it does
 
@@ -25,18 +25,18 @@ pip install --user ablang
 
 ```bash
 # Basic
-sbatch run_pipeline.sh /data/$USER/fastqs /data/$USER/results
+sbatch run_nabbit.sh /data/$USER/fastqs /data/$USER/results
 
 # Specific rounds
-sbatch run_pipeline.sh /data/$USER/fastqs /data/$USER/results "1,2,3,5,6"
+sbatch run_nabbit.sh /data/$USER/fastqs /data/$USER/results "1,2,3,5,6"
 
 # With AbLang scoring
-sbatch run_pipeline.sh /data/$USER/fastqs /data/$USER/results "" --ablang
+sbatch run_nabbit.sh /data/$USER/fastqs /data/$USER/results "" --ablang
 
 # Interactive
 sinteractive --cpus-per-task=8 --mem=32g
 module load python/3.11
-python nanobody_ngs_enrichment.py \
+python nabbit.py \
     --fastq-dir /data/$USER/fastqs \
     --output-dir /data/$USER/results \
     --threads 8 --ablang
@@ -84,3 +84,7 @@ results/
 ├── diversity_across_rounds.png
 └── cdr3_length_distribution.png
 ```
+
+## License
+
+MIT

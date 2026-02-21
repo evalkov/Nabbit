@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2025 Valkov Lab, National Cancer Institute, NIH
+Copyright (c) 2025-2026 National Institutes of Health (NIH)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +19,18 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+GOVERNMENT DISCLAIMER
+
+This software was developed at the National Institutes of Health (NIH),
+National Cancer Institute (NCI), by employees of the Federal Government in
+the course of their official duties. Pursuant to Title 17, Section 105 of
+the United States Code, this software is not subject to copyright protection
+within the United States and is in the public domain. Outside of the United
+States, this work is licensed under the MIT License above.
+
+NIH, NCI, and the U.S. Government make no warranty, expressed or implied,
+including the warranties of merchantability and fitness for a particular
+purpose. NIH, NCI, and the U.S. Government are not liable for any claims or
+damages arising from the use of this software.
+

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Nanobody NGS Enrichment Analysis Pipeline v2.0
+Nabbit — Nanobody NGS Enrichment Analysis Pipeline
 =================================================
 HPC pipeline for analyzing nanobody phage/yeast display enrichment
 from paired-end Illumina sequencing data (fastq.gz).
@@ -784,7 +784,7 @@ def write_report(top_df, annotations, clone_tracking, diversity_df, rounds_data,
 # ===========================================================================
 def main():
     parser = argparse.ArgumentParser(
-        description="Nanobody NGS Enrichment Pipeline v2.0",
+        description="Nabbit — Nanobody NGS Enrichment Pipeline",
         formatter_class=argparse.RawDescriptionHelpFormatter)
 
     parser.add_argument('--fastq-dir', required=True)

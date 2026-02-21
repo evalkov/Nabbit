@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=nanobody_ngs
-#SBATCH --output=nanobody_ngs_%j.out
-#SBATCH --error=nanobody_ngs_%j.err
+#SBATCH --job-name=nabbit
+#SBATCH --output=nabbit_%j.out
+#SBATCH --error=nabbit_%j.err
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32g
 #SBATCH --time=4:00:00
@@ -21,7 +21,7 @@ module load python/3.11
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-CMD="python ${SCRIPT_DIR}/nanobody_ngs_enrichment.py \
+CMD="python ${SCRIPT_DIR}/nabbit.py \
     --fastq-dir $FASTQ_DIR \
     --output-dir $OUTPUT_DIR \
     --threads $SLURM_CPUS_PER_TASK"
