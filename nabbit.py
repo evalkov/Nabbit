@@ -5055,8 +5055,12 @@ class NabbitHandler:
                 for p in pairs:
                     f.write(f"{p['round']}\t{p['r1']}\t{p['r2']}\n")
 
-            cmd = [
-                sys.executable, os.path.abspath(__file__),
+            if getattr(sys, 'frozen', False):
+                # PyInstaller bundle: the executable IS the entry point
+                cmd = [sys.executable]
+            else:
+                cmd = [sys.executable, os.path.abspath(__file__)]
+            cmd += [
                 '--fastq-dir', body.get('dir', '.'),
                 '--output-dir', output_dir,
                 '--sample-map', sample_map,
@@ -5167,8 +5171,9 @@ def start_server(port=8080):
     import webbrowser
     handler = NabbitHandler._Handler
     server = HTTPServer(('', port), handler)
-    log.info(f"Nabbit launcher running at http://localhost:{port}")
-    webbrowser.open(f'http://localhost:{port}')
+    actual_port = server.server_address[1]  # resolves port 0 to actual port
+    log.info(f"Nabbit launcher running at http://localhost:{actual_port}")
+    webbrowser.open(f'http://localhost:{actual_port}')
     try:
         server.serve_forever()
     except KeyboardInterrupt:
