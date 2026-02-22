@@ -1672,6 +1672,13 @@ DASHBOARD_CSS = """
 *::-webkit-scrollbar-thumb:hover{background:var(--text-dim)}
 *::-webkit-scrollbar-corner{background:var(--surface)}
 *{scrollbar-width:thin;scrollbar-color:var(--border) var(--surface)}
+input[type=checkbox]{-webkit-appearance:none;appearance:none;width:16px;height:16px;border:1.5px solid var(--border);
+  border-radius:4px;background:var(--surface2);cursor:pointer;position:relative;vertical-align:middle;
+  flex-shrink:0;transition:all .15s}
+input[type=checkbox]:hover{border-color:var(--accent)}
+input[type=checkbox]:checked{background:var(--accent);border-color:var(--accent)}
+input[type=checkbox]:checked::after{content:'';position:absolute;left:4.5px;top:1.5px;width:4px;height:8px;
+  border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;line-height:1.5;min-height:100vh}
 .container{max-width:1280px;margin:0 auto;padding:32px 24px}
 .header{margin-bottom:32px;display:flex;align-items:center;justify-content:space-between}
@@ -1746,7 +1753,7 @@ th.sorted .sort-arrow{opacity:1;color:var(--accent)}
   padding:10px 16px;background:var(--surface);border-radius:8px;border:1px solid var(--border)}
 .filter-bar label{font-size:12px;color:var(--text-dim);cursor:pointer;display:flex;
   align-items:center;gap:4px;font-family:var(--mono)}
-.filter-bar input[type=checkbox]{accent-color:var(--accent)}
+.filter-bar input[type=checkbox]{margin-right:2px}
 .family-group td{background:var(--accent)!important;color:#fff!important;font-weight:600;
   font-size:11px;letter-spacing:.5px;padding:6px 8px!important}
 .pca-linked-row td{background:rgba(167,139,250,0.1)!important}
@@ -3732,7 +3739,7 @@ def _build_enrichment_table(top_df, annotations, rds):
       <input type="text" class="phylo-search" placeholder="Search sequences...">
       <button class="btn-export" data-table="enrichment-table">Export CSV</button>
       <label style="font-size:12px;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:4px;margin-left:8px">
-        <input type="checkbox" id="group-by-family" style="accent-color:var(--accent)">Group by family
+        <input type="checkbox" id="group-by-family">Group by family
       </label>
       <span class="phylo-entries-bar">Show
         <select class="phylo-page-size"><option value="10">10</option>
@@ -3782,6 +3789,13 @@ LAUNCHER_HTML = """<!DOCTYPE html>
 *::-webkit-scrollbar-thumb:hover{background:var(--text-dim)}
 *::-webkit-scrollbar-corner{background:var(--surface)}
 *{scrollbar-width:thin;scrollbar-color:var(--border) var(--surface)}
+input[type=checkbox]{-webkit-appearance:none;appearance:none;width:16px;height:16px;border:1.5px solid var(--border);
+  border-radius:4px;background:var(--surface2);cursor:pointer;position:relative;vertical-align:middle;
+  flex-shrink:0;transition:all .15s}
+input[type=checkbox]:hover{border-color:var(--accent)}
+input[type=checkbox]:checked{background:var(--accent);border-color:var(--accent)}
+input[type=checkbox]:checked::after{content:'';position:absolute;left:4.5px;top:1.5px;width:4px;height:8px;
+  border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;line-height:1.5;min-height:100vh}
 .container{max-width:900px;margin:0 auto;padding:32px 24px}
 .header{margin-bottom:32px;display:flex;align-items:center;justify-content:space-between}
@@ -3834,7 +3848,7 @@ table.pairs-table select{background:var(--surface2);border:1px solid var(--borde
 .options-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
 .option-item{display:flex;align-items:center;gap:8px}
 .option-item label{font-size:12px;color:var(--text-dim);font-family:var(--mono);cursor:pointer}
-.option-item input[type=checkbox]{accent-color:var(--accent)}
+.option-item input[type=checkbox]{margin-right:2px}
 .option-item input[type=number]{width:70px;background:var(--surface2);border:1px solid var(--border);
   color:var(--text);padding:6px 8px;border-radius:6px;font-size:12px;font-family:var(--mono)}
 .status-area{margin-top:20px;display:none}
