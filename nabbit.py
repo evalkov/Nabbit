@@ -3776,6 +3776,12 @@ LAUNCHER_HTML = """<!DOCTYPE html>
   --teal:#0891b2;--orange:#ea580c;--green:#059669;--red:#dc2626;
 }
 *{margin:0;padding:0;box-sizing:border-box}
+*::-webkit-scrollbar{width:8px;height:8px}
+*::-webkit-scrollbar-track{background:var(--surface);border-radius:4px}
+*::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+*::-webkit-scrollbar-thumb:hover{background:var(--text-dim)}
+*::-webkit-scrollbar-corner{background:var(--surface)}
+*{scrollbar-width:thin;scrollbar-color:var(--border) var(--surface)}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;line-height:1.5;min-height:100vh}
 .container{max-width:900px;margin:0 auto;padding:32px 24px}
 .header{margin-bottom:32px;display:flex;align-items:center;justify-content:space-between}
