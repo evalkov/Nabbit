@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
-"""Extract chain sequences from all PDB files in the same directory. Double-click to run."""
-
+#!/bin/bash
+cd "$(dirname "$0")"
+python3 << 'PYTHON_SCRIPT'
 import os, glob
 
 AA3TO1 = {
@@ -30,12 +30,11 @@ def extract_chains(pdb_path):
             chains.setdefault(chain, []).append(AA3TO1[resname])
     return {c: "".join(residues) for c, residues in chains.items()}
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
+script_dir = os.getcwd()
 pdbs = sorted(glob.glob(os.path.join(script_dir, "*.pdb")))
 
 if not pdbs:
     print("No .pdb files found in", script_dir)
-    input("Press Enter to exit...")
     raise SystemExit
 
 out_path = os.path.join(script_dir, "pdb_sequences.tsv")
@@ -49,4 +48,5 @@ with open(out_path, "w") as out:
             n += 1
 
 print(f"Wrote {n} chains from {len(pdbs)} PDB files -> {out_path}")
-input("Press Enter to exit...")
+PYTHON_SCRIPT
+read -p "Press Enter to exit..."
