@@ -2,7 +2,7 @@
 
 ## Project structure
 
-Single-file pipeline: all code lives in `nabbit.py` (~4000 lines). No package structure.
+Single-file pipeline: all code lives in `nabbit.py` (~4800 lines). No package structure.
 
 ### Key sections in nabbit.py (top to bottom)
 
@@ -44,6 +44,21 @@ Single-file pipeline: all code lives in `nabbit.py` (~4000 lines). No package st
 - CSS is in the `DASHBOARD_CSS` region at the top of `generate_dashboard()`
 - JS is in the `DASHBOARD_JS` region
 
+### UI components (shared between dashboard & launcher)
+
+- **Custom scrollbars**: thin dark scrollbars via WebKit pseudo-elements and Firefox `scrollbar-color`, using `var(--border)` / `var(--surface)` theme vars
+- **Custom checkboxes**: `appearance:none` with themed background/border and CSS checkmark pseudo-element; accent purple when checked
+- **Custom select dropdowns**: `initCustomSelects()` JS replaces native `<select>` with custom `.custom-select` div wrappers. Hidden `<select>` is preserved so existing event handlers (including inline `onchange`) still work via dispatched `change` events. Auto-positions up/down based on viewport space
+- **Paginated tables**: `.phylo-paginated` wrapper with `.phylo-search`, `.phylo-page-size`, `.phylo-page-controls` elements; handled by `initPhyloPagination()` JS. Used by: enrichment table, PCA table, cluster table, per-round phylo tables
+- **Crosstalk**: hover/click bidirectional highlighting between trees and tables via `initClusterCrosstalk()`, `initRoundPhyloCrosstalk()`, `initPcaCrosstalk()`, `initPplCrosstalk()`
+
+### Phylogenetic trees
+
+- `_radial_layout(tree)`: equal-angle radial layout producing elbow edges (arc at parent radius + radial line to child). Returns `(positions, edges, lineages)` where edges are polyline point lists `[(x,y), ...]`
+- `_build_round_phylo()`: per-round NJ tree with uniform salmon leaf nodes; size ∝ log10(CPM)
+- `_build_cluster_phylo()`: enriched clusters NJ tree with per-leaf log2FC heatmap coloring (dark→pink gradient via `_log2fc_color()`). Returns 5-tuple `(fig, matrix_name, lineage_json, family_to_idx, l2fc_range)`
+- Lineage JSON format: `{leaf_idx: [[[x,y],[x,y],...], ...]}` — list of polyline segments per leaf
+
 ## Web server (--serve)
 
 - `NabbitHandler` inner class with `_Handler` extending `BaseHTTPRequestHandler`
@@ -70,6 +85,8 @@ python nabbit.py --serve
 - The pipeline must work with only core deps (numpy, pandas, scipy, matplotlib); optional features degrade gracefully
 - Dashboard must be a single self-contained HTML file (no external assets except Plotly CDN)
 - Use CSS variables for all colors in the dashboard to support dark/light themes
+- Never use native browser form elements — use the custom-styled checkboxes, selects, and scrollbars already in place
+- New tables should use the `.phylo-paginated` pagination pattern, not scroll overflow
 - Chart legends use `<details class="chart-legend">` elements; add one for any new chart
 - Regex-based FASTQ discovery must handle standard Illumina naming; use `--sample-map` for edge cases
 - Log with the `log` module logger, not print statements
