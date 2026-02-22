@@ -1783,6 +1783,27 @@ table.enrich-table tr.cluster-highlight td{background:rgba(244,165,138,0.15)!imp
 .phylo-paginated{margin-top:16px}
 .phylo-entries-bar{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:var(--text-dim);font-family:var(--mono)}
 .phylo-page-size{font-size:11px;padding:4px 24px 4px 8px}
+.custom-select{position:relative;display:inline-block}
+.custom-select-trigger{background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  padding:6px 28px 6px 10px;border-radius:6px;font-size:12px;font-family:var(--mono);cursor:pointer;
+  transition:all .15s;white-space:nowrap;user-select:none;position:relative}
+.custom-select-trigger::after{content:'';position:absolute;right:9px;top:50%;transform:translateY(-50%);
+  border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--text-dim);
+  transition:transform .15s}
+.custom-select.open .custom-select-trigger{border-color:var(--accent)}
+.custom-select.open .custom-select-trigger::after{transform:translateY(-50%) rotate(180deg)}
+.custom-select-trigger:hover{border-color:var(--accent)}
+.custom-select-options{display:none;position:absolute;bottom:100%;left:0;margin-bottom:4px;
+  background:var(--surface2);border:1px solid var(--border);border-radius:6px;min-width:100%;
+  z-index:999;overflow:hidden;box-shadow:0 -4px 16px rgba(0,0,0,0.4)}
+.custom-select.open .custom-select-options{display:block}
+.custom-select.drop-down .custom-select-options{bottom:auto;top:100%;margin-bottom:0;margin-top:4px;
+  box-shadow:0 4px 16px rgba(0,0,0,0.4)}
+.custom-select-option{padding:6px 12px;font-size:12px;font-family:var(--mono);color:var(--text-dim);
+  cursor:pointer;transition:all .1s;white-space:nowrap}
+.custom-select-option:hover{background:var(--accent);color:#fff}
+.custom-select-option.selected{color:var(--accent)}
+.custom-select-option.selected:hover{color:#fff}
 .phylo-page-controls{display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px}
 .phylo-page-info{font-size:12px;color:var(--text-dim);font-family:var(--mono)}
 .phylo-page-nav{display:flex;align-items:center;gap:4px}
@@ -2431,9 +2452,57 @@ function initXlExport(){
     });
   });
 }
+function initCustomSelects(){
+  document.querySelectorAll('select').forEach(sel=>{
+    if(sel.dataset.customized)return;
+    sel.dataset.customized='1';
+    sel.style.display='none';
+    const wrap=document.createElement('div');
+    wrap.className='custom-select';
+    sel.parentNode.insertBefore(wrap,sel);
+    wrap.appendChild(sel);
+    const trigger=document.createElement('div');
+    trigger.className='custom-select-trigger';
+    const opts=document.createElement('div');
+    opts.className='custom-select-options';
+    function buildOpts(){
+      opts.innerHTML='';
+      Array.from(sel.options).forEach(o=>{
+        const d=document.createElement('div');
+        d.className='custom-select-option'+(o.selected?' selected':'');
+        d.textContent=o.textContent;d.dataset.value=o.value;
+        d.addEventListener('click',e=>{
+          e.stopPropagation();
+          sel.value=o.value;sel.dispatchEvent(new Event('change',{bubbles:true}));
+          opts.querySelectorAll('.custom-select-option').forEach(x=>x.classList.remove('selected'));
+          d.classList.add('selected');
+          trigger.textContent=o.textContent;
+          wrap.classList.remove('open');
+        });
+        opts.appendChild(d);
+      });
+      const cur=sel.options[sel.selectedIndex];
+      trigger.textContent=cur?cur.textContent:'';
+    }
+    buildOpts();
+    wrap.appendChild(trigger);wrap.appendChild(opts);
+    trigger.addEventListener('click',e=>{
+      e.stopPropagation();
+      document.querySelectorAll('.custom-select.open').forEach(w=>{if(w!==wrap)w.classList.remove('open');});
+      wrap.classList.toggle('open');
+      if(wrap.classList.contains('open')){
+        const r=wrap.getBoundingClientRect();
+        const spaceAbove=r.top;const spaceBelow=window.innerHeight-r.bottom;
+        wrap.classList.toggle('drop-down',spaceBelow>spaceAbove||spaceBelow>200);
+      }
+    });
+    new MutationObserver(buildOpts).observe(sel,{childList:true,attributes:true,subtree:true});
+  });
+  document.addEventListener('click',()=>{document.querySelectorAll('.custom-select.open').forEach(w=>w.classList.remove('open'));});
+}
 document.addEventListener('DOMContentLoaded',()=>{initTabs();initTheme();initTableSort();initTableFilter();
   initCsvExport();initPcaCrosstalk();initPcaFilters();initFamilyGroupToggle();
-  initPhyloPagination();initXlExport();initClusterCrosstalk();initRoundPhyloCrosstalk();initPplCrosstalk();});
+  initCustomSelects();initPhyloPagination();initXlExport();initClusterCrosstalk();initRoundPhyloCrosstalk();initPplCrosstalk();});
 """
 
 DASHBOARD_PALETTE = ['#a78bfa','#06b6d4','#f97316','#34d399','#f87171',
@@ -3878,6 +3947,27 @@ table.pairs-table select{font-size:12px}
   max-height:300px;overflow-y:auto;white-space:pre-wrap;line-height:1.6}
 .empty-state{text-align:center;padding:32px;color:var(--text-dim);font-size:12px;font-family:var(--mono)}
 .run-bar{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:20px}
+.custom-select{position:relative;display:inline-block}
+.custom-select-trigger{background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  padding:6px 28px 6px 10px;border-radius:6px;font-size:12px;font-family:var(--mono);cursor:pointer;
+  transition:all .15s;white-space:nowrap;user-select:none;position:relative}
+.custom-select-trigger::after{content:'';position:absolute;right:9px;top:50%;transform:translateY(-50%);
+  border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--text-dim);
+  transition:transform .15s}
+.custom-select.open .custom-select-trigger{border-color:var(--accent)}
+.custom-select.open .custom-select-trigger::after{transform:translateY(-50%) rotate(180deg)}
+.custom-select-trigger:hover{border-color:var(--accent)}
+.custom-select-options{display:none;position:absolute;bottom:100%;left:0;margin-bottom:4px;
+  background:var(--surface2);border:1px solid var(--border);border-radius:6px;min-width:100%;
+  z-index:999;overflow:hidden;box-shadow:0 -4px 16px rgba(0,0,0,0.4)}
+.custom-select.open .custom-select-options{display:block}
+.custom-select.drop-down .custom-select-options{bottom:auto;top:100%;margin-bottom:0;margin-top:4px;
+  box-shadow:0 4px 16px rgba(0,0,0,0.4)}
+.custom-select-option{padding:6px 12px;font-size:12px;font-family:var(--mono);color:var(--text-dim);
+  cursor:pointer;transition:all .1s;white-space:nowrap}
+.custom-select-option:hover{background:var(--accent);color:#fff}
+.custom-select-option.selected{color:var(--accent)}
+.custom-select-option.selected:hover{color:#fff}
 </style>
 </head>
 <body>
@@ -3952,6 +4042,54 @@ let pairs = [];
 let selectedDir = '';
 let currentRunId = null;
 let pollTimer = null;
+
+function initCustomSelects(){
+  document.querySelectorAll('select').forEach(sel=>{
+    if(sel.dataset.customized)return;
+    sel.dataset.customized='1';
+    sel.style.display='none';
+    const wrap=document.createElement('div');
+    wrap.className='custom-select';
+    sel.parentNode.insertBefore(wrap,sel);
+    wrap.appendChild(sel);
+    const trigger=document.createElement('div');
+    trigger.className='custom-select-trigger';
+    const opts=document.createElement('div');
+    opts.className='custom-select-options';
+    function buildOpts(){
+      opts.innerHTML='';
+      Array.from(sel.options).forEach(o=>{
+        const d=document.createElement('div');
+        d.className='custom-select-option'+(o.selected?' selected':'');
+        d.textContent=o.textContent;d.dataset.value=o.value;
+        d.addEventListener('click',e=>{
+          e.stopPropagation();
+          sel.value=o.value;sel.dispatchEvent(new Event('change',{bubbles:true}));
+          opts.querySelectorAll('.custom-select-option').forEach(x=>x.classList.remove('selected'));
+          d.classList.add('selected');
+          trigger.textContent=o.textContent;
+          wrap.classList.remove('open');
+        });
+        opts.appendChild(d);
+      });
+      const cur=sel.options[sel.selectedIndex];
+      trigger.textContent=cur?cur.textContent:'';
+    }
+    buildOpts();
+    wrap.appendChild(trigger);wrap.appendChild(opts);
+    trigger.addEventListener('click',e=>{
+      e.stopPropagation();
+      document.querySelectorAll('.custom-select.open').forEach(w=>{if(w!==wrap)w.classList.remove('open');});
+      wrap.classList.toggle('open');
+      if(wrap.classList.contains('open')){
+        const r=wrap.getBoundingClientRect();
+        const spaceBelow=window.innerHeight-r.bottom;
+        wrap.classList.toggle('drop-down',spaceBelow>200);
+      }
+    });
+  });
+  document.addEventListener('click',()=>{document.querySelectorAll('.custom-select.open').forEach(w=>w.classList.remove('open'));});
+}
 
 function toggleTheme() {
   const h = document.documentElement;
@@ -4065,6 +4203,7 @@ function renderPairs() {
   html += '</tbody></table>';
   c.innerHTML = html;
   document.getElementById('run-btn').disabled = false;
+  initCustomSelects();
 }
 
 function removePair(index) {
