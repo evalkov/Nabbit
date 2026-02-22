@@ -1721,9 +1721,9 @@ table.enrich-table th:hover{color:var(--text)}
 table.enrich-table td{padding:8px;border-bottom:1px solid var(--border);white-space:nowrap;color:var(--text-dim)}
 table.enrich-table tr:hover td{background:var(--surface2);color:var(--text)}
 .table-controls{display:flex;gap:12px;align-items:center;margin-bottom:12px}
-.table-search{background:var(--surface2);border:1px solid var(--border);color:var(--text);
+.table-search,.phylo-search{background:var(--surface2);border:1px solid var(--border);color:var(--text);
   padding:8px 14px;border-radius:8px;font-size:12px;font-family:var(--mono);width:280px}
-.table-search:focus{outline:none;border-color:var(--accent)}
+.table-search:focus,.phylo-search:focus{outline:none;border-color:var(--accent)}
 .sort-arrow{font-size:10px;margin-left:4px;opacity:.3}
 th.sorted .sort-arrow{opacity:1;color:var(--accent)}
 .download-btn{display:inline-flex;align-items:center;gap:8px;background:var(--surface);
