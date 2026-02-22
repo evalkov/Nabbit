@@ -168,6 +168,25 @@ def discover_fastqs(fastq_dir: str, sample_map: Optional[str] = None,
                 log.debug(f"Round {rnd}: skipped (not in --rounds)")
         else:
             log.warning(f"Round {rnd}: missing pair, skipping")
+
+    # Fallback: try _1/_2 suffix pattern (SRA, ENA, etc.)
+    if not valid:
+        sra_pattern = re.compile(r'^(.+)[_.]([12])\.(?:fastq|fq)(?:\.gz)?$', re.IGNORECASE)
+        sra_groups: Dict[str, Dict[str, str]] = {}
+        for ext in ('*.fastq.gz', '*.fq.gz', '*.fastq', '*.fq'):
+            for fp in fastq_dir.rglob(ext):
+                m = sra_pattern.match(fp.name)
+                if m:
+                    prefix = m.group(1)
+                    read = m.group(2)
+                    sra_groups.setdefault(prefix, {})[f"R{read}"] = str(fp.resolve())
+        for rnd_idx, prefix in enumerate(sorted(sra_groups), start=1):
+            reads = sra_groups[prefix]
+            if 'R1' in reads and 'R2' in reads:
+                if rounds is None or rnd_idx in rounds:
+                    valid[rnd_idx] = reads
+                    log.info(f"SRA fallback: {prefix} → Round {rnd_idx}")
+
     return valid
 
 
@@ -3933,7 +3952,18 @@ table.pairs-table select{font-size:12px}
 .option-item label{font-size:12px;color:var(--text-dim);font-family:var(--mono);cursor:pointer}
 .option-item input[type=checkbox]{margin-right:2px}
 .option-item input[type=number]{width:70px;background:var(--surface2);border:1px solid var(--border);
-  color:var(--text);padding:6px 8px;border-radius:6px;font-size:12px;font-family:var(--mono)}
+  color:var(--text);padding:6px 8px;border-radius:6px;font-size:12px;font-family:var(--mono);
+  -moz-appearance:textfield;appearance:textfield}
+.option-item input[type=number]::-webkit-inner-spin-button,
+.option-item input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.num-wrap{position:relative;display:inline-flex;align-items:center}
+.num-wrap input[type=number]{padding-right:24px}
+.num-spin{position:absolute;right:1px;top:1px;bottom:1px;width:22px;display:flex;flex-direction:column;
+  border-left:1px solid var(--border);border-radius:0 5px 5px 0;overflow:hidden}
+.num-spin button{flex:1;background:var(--surface2);border:none;color:var(--text-dim);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;padding:0;font-size:10px;line-height:1}
+.num-spin button:hover{background:var(--accent);color:#fff}
+.num-spin button+button{border-top:1px solid var(--border)}
 .status-area{margin-top:20px;display:none}
 .status-bar{display:flex;align-items:center;gap:12px;margin-bottom:12px}
 .spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);
@@ -4001,11 +4031,23 @@ table.pairs-table select{font-size:12px}
     <div class="options-grid">
       <div class="option-item">
         <label for="opt-threads">Threads</label>
-        <input type="number" id="opt-threads" value="4" min="1" max="64">
+        <div class="num-wrap">
+          <input type="number" id="opt-threads" value="4" min="1" max="64">
+          <div class="num-spin">
+            <button type="button" onclick="stepNum('opt-threads',1)">&#9650;</button>
+            <button type="button" onclick="stepNum('opt-threads',-1)">&#9660;</button>
+          </div>
+        </div>
       </div>
       <div class="option-item">
         <label for="opt-topn">Top N</label>
-        <input type="number" id="opt-topn" value="50" min="10" max="500">
+        <div class="num-wrap">
+          <input type="number" id="opt-topn" value="50" min="10" max="500">
+          <div class="num-spin">
+            <button type="button" onclick="stepNum('opt-topn',1)">&#9650;</button>
+            <button type="button" onclick="stepNum('opt-topn',-1)">&#9660;</button>
+          </div>
+        </div>
       </div>
       <div class="option-item">
         <input type="checkbox" id="opt-ablang">
@@ -4039,6 +4081,8 @@ table.pairs-table select{font-size:12px}
 
 <script>
 let pairs = [];
+let manualFiles = [];
+let manualMode = false;
 let selectedDir = '';
 let currentRunId = null;
 let pollTimer = null;
@@ -4091,6 +4135,15 @@ function initCustomSelects(){
   document.addEventListener('click',()=>{document.querySelectorAll('.custom-select.open').forEach(w=>w.classList.remove('open'));});
 }
 
+function stepNum(id, dir) {
+  const inp = document.getElementById(id);
+  const min = Number(inp.min), max = Number(inp.max), step = Number(inp.step) || 1;
+  let val = Number(inp.value) + dir * step;
+  if (!isNaN(min) && val < min) val = min;
+  if (!isNaN(max) && val > max) val = max;
+  inp.value = val;
+}
+
 function toggleTheme() {
   const h = document.documentElement;
   h.setAttribute('data-theme', h.getAttribute('data-theme') === 'light' ? '' : 'light');
@@ -4131,7 +4184,7 @@ dropZone.addEventListener('drop', async e => {
     }
   } catch (err) {
     document.getElementById('drop-zone-path').textContent = '';
-    showError('Failed to locate files: ' + err.message);
+    showError('Could not locate files automatically. Please enter the FASTQ directory path manually.');
   }
 });
 
@@ -4178,7 +4231,53 @@ async function scanDir(dir, filterNames) {
     const data = await resp.json();
     if (data.error) { showError(data.error); return; }
     pairs = data.pairs || [];
-    renderPairs();
+    if (pairs.length > 0) {
+      manualMode = false;
+      manualFiles = [];
+      renderPairs();
+    } else if (data.files && data.files.length > 0) {
+      /* Try client-side auto-pairing by common prefix */
+      const pairRe = /^(.+)[_.]([12])\\.(?:fastq|fq)(?:\\.gz)?$/i;
+      const r1r2Re = /^(.+?)[._]R([12])[._]/i;
+      const groups = {};
+      const ungrouped = [];
+      data.files.forEach(f => {
+        let m = pairRe.exec(f.name);
+        if (m) { groups[m[1]] = groups[m[1]] || {}; groups[m[1]][m[2]] = f; return; }
+        m = r1r2Re.exec(f.name);
+        if (m) { groups[m[1]] = groups[m[1]] || {}; groups[m[1]][m[2]] = f; return; }
+        ungrouped.push(f);
+      });
+      const autoPairs = [];
+      Object.keys(groups).sort().forEach((prefix, idx) => {
+        const g = groups[prefix];
+        if (g['1'] && g['2']) {
+          autoPairs.push({round: idx+1, r1: g['1'].path, r2: g['2'].path,
+            r1_name: g['1'].name, r2_name: g['2'].name});
+        } else {
+          Object.values(g).forEach(f => ungrouped.push(f));
+        }
+      });
+      if (autoPairs.length > 0 && ungrouped.length === 0) {
+        pairs = autoPairs;
+        manualMode = false;
+        manualFiles = [];
+        renderPairs();
+      } else {
+        /* Fall back to manual file assignment */
+        manualMode = true;
+        pairs = [];
+        manualFiles = data.files.map((f, i) => ({
+          path: f.path, name: f.name, round: Math.floor(i/2)+1,
+          read: (i % 2 === 0) ? 'R1' : 'R2'
+        }));
+        renderManualFiles();
+      }
+    } else {
+      manualMode = false;
+      manualFiles = [];
+      renderPairs();
+    }
   } catch (e) { showError('Failed to scan directory: ' + e.message); }
 }
 
@@ -4191,7 +4290,7 @@ function renderPairs() {
   }
   let html = '<table class="pairs-table" style="margin-top:16px"><thead><tr><th>Round</th><th>R1</th><th>R2</th><th></th></tr></thead><tbody>';
   pairs.forEach((p, i) => {
-    let opts = '';
+    let opts = '<option value="0"' + (p.round === 0 ? ' selected' : '') + '>Round 0 (naive)</option>';
     for (let r = 1; r <= 10; r++) {
       opts += '<option value="' + r + '"' + (r === p.round ? ' selected' : '') + '>Round ' + r + '</option>';
     }
@@ -4211,7 +4310,68 @@ function removePair(index) {
   renderPairs();
 }
 
+function renderManualFiles() {
+  const c = document.getElementById('pairs-container');
+  if (manualFiles.length === 0) {
+    c.innerHTML = '<div class="empty-state" style="margin-top:16px">No FASTQ files to assign</div>';
+    document.getElementById('run-btn').disabled = true;
+    return;
+  }
+  let html = '<div style="margin-top:12px;margin-bottom:8px;font-size:12px;color:var(--text-dim);font-family:var(--mono)">' +
+    'Auto-pairing failed. Assign each file to a round and read manually:</div>';
+  html += '<table class="pairs-table"><thead><tr><th>File</th><th>Round</th><th>Read</th><th></th></tr></thead><tbody>';
+  manualFiles.forEach((f, i) => {
+    let roundOpts = '<option value="0"' + (f.round === 0 ? ' selected' : '') + '>Round 0 (naive)</option>';
+    for (let r = 1; r <= 10; r++) {
+      roundOpts += '<option value="' + r + '"' + (r === f.round ? ' selected' : '') + '>Round ' + r + '</option>';
+    }
+    const r1Sel = f.read === 'R1' ? ' selected' : '';
+    const r2Sel = f.read === 'R2' ? ' selected' : '';
+    html += '<tr><td title="' + f.path + '">' + f.name + '</td>';
+    html += '<td><select onchange="manualFiles[' + i + '].round=parseInt(this.value)">' + roundOpts + '</select></td>';
+    html += '<td><select onchange="manualFiles[' + i + '].read=this.value">' +
+      '<option value="R1"' + r1Sel + '>R1</option><option value="R2"' + r2Sel + '>R2</option></select></td>';
+    html += '<td><button class="btn-remove" onclick="removeManualFile(' + i + ')" title="Remove this file">&times;</button></td></tr>';
+  });
+  html += '</tbody></table>';
+  c.innerHTML = html;
+  document.getElementById('run-btn').disabled = false;
+  initCustomSelects();
+}
+
+function removeManualFile(index) {
+  manualFiles.splice(index, 1);
+  renderManualFiles();
+}
+
 async function runPipeline() {
+  /* If in manual mode, validate and build pairs from manualFiles */
+  if (manualMode) {
+    const grouped = {};
+    manualFiles.forEach(f => {
+      const key = f.round;
+      if (!grouped[key]) grouped[key] = {};
+      if (grouped[key][f.read]) {
+        showError('Round ' + key + ' has duplicate ' + f.read + ' assignments');
+        return;
+      }
+      grouped[key][f.read] = f;
+    });
+    const built = [];
+    const errors = [];
+    for (const rnd of Object.keys(grouped).map(Number).sort((a,b)=>a-b)) {
+      const g = grouped[rnd];
+      if (!g.R1) errors.push('Round ' + rnd + ' is missing R1');
+      if (!g.R2) errors.push('Round ' + rnd + ' is missing R2');
+      if (g.R1 && g.R2) {
+        built.push({round: rnd, r1: g.R1.path, r2: g.R2.path,
+          r1_name: g.R1.name, r2_name: g.R2.name});
+      }
+    }
+    if (errors.length > 0) { showError(errors.join('; ')); return; }
+    if (built.length === 0) { showError('No valid pairs could be built from assignments'); return; }
+    pairs = built;
+  }
   if (pairs.length === 0) return;
   const btn = document.getElementById('run-btn');
   btn.disabled = true;
@@ -4373,7 +4533,11 @@ class NabbitHandler:
 
         # --- /api/locate (find dropped files on disk) ---
         def _handle_locate(self):
-            body = self._read_body()
+            try:
+                body = self._read_body()
+            except Exception as e:
+                self._send_json({'error': f'Bad request: {e}'}, 400)
+                return
             filenames = body.get('filenames', [])
             if not filenames:
                 self._send_json({'error': 'No filenames provided'})
@@ -4384,7 +4548,7 @@ class NabbitHandler:
                 if sys.platform == 'darwin':
                     r = subprocess.run(
                         ['mdfind', '-name', target],
-                        capture_output=True, text=True, timeout=10)
+                        capture_output=True, text=True, timeout=15)
                     if r.returncode == 0:
                         best_dir, best_hits = None, 0
                         for line in r.stdout.strip().split('\n'):
@@ -4410,13 +4574,19 @@ class NabbitHandler:
                         r = subprocess.run(
                             ['find', root_dir, '-maxdepth', '5',
                              '-name', target, '-type', 'f'],
-                            capture_output=True, text=True, timeout=10)
+                            capture_output=True, text=True, timeout=15)
                         if r.returncode == 0 and r.stdout.strip():
                             first_hit = r.stdout.strip().split('\n')[0]
                             found_dir = os.path.dirname(first_hit)
                             break
-            except Exception:
-                pass
+            except subprocess.TimeoutExpired:
+                self._send_json({'dir': None, 'error':
+                    'File search timed out. Please enter the path manually.'})
+                return
+            except Exception as e:
+                self._send_json({'dir': None, 'error':
+                    f'File search failed: {e}. Please enter the path manually.'})
+                return
             if found_dir:
                 self._send_json({'dir': found_dir})
             else:
@@ -4450,7 +4620,18 @@ class NabbitHandler:
                         'r1_name': os.path.basename(r1),
                         'r2_name': os.path.basename(r2),
                     })
-                self._send_json({'pairs': pairs})
+                # If no pairs found, return individual FASTQ files for manual assignment
+                raw_files = []
+                if not pairs:
+                    dp = Path(dir_path)
+                    for ext in ('*.fastq.gz', '*.fq.gz', '*.fastq', '*.fq'):
+                        for fp in dp.rglob(ext):
+                            name = fp.name
+                            if filter_names and name not in filter_names:
+                                continue
+                            raw_files.append({'path': str(fp.resolve()), 'name': name})
+                    raw_files.sort(key=lambda x: x['name'])
+                self._send_json({'pairs': pairs, 'files': raw_files})
             except Exception as e:
                 self._send_json({'error': str(e)})
 

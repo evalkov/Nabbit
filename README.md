@@ -51,14 +51,14 @@ plotly
 
 ```bash
 # Create a virtual environment (recommended)
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv venv
+source venv/bin/activate
 
 # Install all dependencies
-pip install numpy pandas scipy matplotlib plotly
+pip3 install numpy pandas scipy matplotlib plotly biopython scikit-learn
 
 # Optional
-pip install ablang biopython scikit-learn
+pip3 install ablang
 ```
 
 ### HPC (Biowulf / SLURM)
@@ -66,7 +66,7 @@ pip install ablang biopython scikit-learn
 ```bash
 module load python/3.11
 # numpy, pandas, scipy, matplotlib are typically pre-installed
-pip install --user plotly ablang biopython scikit-learn
+pip3 install --user plotly ablang biopython scikit-learn
 ```
 
 ## Usage
@@ -76,7 +76,7 @@ pip install --user plotly ablang biopython scikit-learn
 Start the built-in web UI for configuring and running the pipeline:
 
 ```bash
-python nabbit.py --serve
+python3 nabbit.py --serve
 ```
 
 This opens a browser at `http://localhost:8080` where you can:
@@ -89,7 +89,7 @@ This opens a browser at `http://localhost:8080` where you can:
 To use a different port:
 
 ```bash
-python nabbit.py --serve --port 9090
+python3 nabbit.py --serve --port 9090
 ```
 
 To stop the server, press `Ctrl+C` in the terminal, or kill the process:
@@ -103,13 +103,13 @@ lsof -ti :8080 | xargs kill
 
 ```bash
 # Basic
-python nabbit.py \
+python3 nabbit.py \
     --fastq-dir /path/to/fastqs \
     --output-dir /path/to/results \
     --threads 8
 
 # With AbLang scoring and IgBLAST annotation
-python nabbit.py \
+python3 nabbit.py \
     --fastq-dir /path/to/fastqs \
     --output-dir /path/to/results \
     --threads 8 \
@@ -117,7 +117,7 @@ python nabbit.py \
     --igblast
 
 # Specific rounds only
-python nabbit.py \
+python3 nabbit.py \
     --fastq-dir /path/to/fastqs \
     --output-dir /path/to/results \
     --rounds 1,2,3,5
@@ -213,6 +213,10 @@ The pipeline generates `dashboard.html` with 5 tabs:
 - **Scoring** — AbLang PPL vs enrichment, V/D/J gene usage (when `--ablang` or `--igblast` enabled)
 
 Each chart includes an expandable figure legend explaining how to interpret the visualization.
+
+## Acknowledgments
+
+Several analytical conventions in Nabbit were inspired by the [alpseq](https://github.com/kzeglinski/alpseq) Nextflow pipeline (GPL-3.0) and [alpseqR](https://github.com/kzeglinski/alpseqR) R package (MIT) by Kathleen Zeglinski at WEHI, including the log2 fold-change pseudocount of 10, saturation rarefaction approach, read count reference thresholds, and IGHV3 gene usage filtering. No code was copied — all implementations in Nabbit are original Python.
 
 ## License
 
