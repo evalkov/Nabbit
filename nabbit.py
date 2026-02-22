@@ -1745,6 +1745,7 @@ th.sorted .sort-arrow{opacity:1;color:var(--accent)}
   font-size:11px;letter-spacing:.5px;padding:6px 8px!important}
 .pca-linked-row td{background:rgba(167,139,250,0.1)!important}
 table.enrich-table tr.pca-highlight td{background:rgba(167,139,250,0.15)!important;color:var(--text)!important}
+table.enrich-table tr.cluster-highlight td{background:rgba(244,165,138,0.15)!important;color:var(--text)!important}
 .mermaid-wrap{background:transparent;border:none;border-radius:0;
   padding:24px;margin-bottom:16px;text-align:center}
 .mermaid-wrap pre.mermaid{background:transparent;border:none;text-align:center}
@@ -1874,28 +1875,310 @@ function initPcaCrosstalk(){
   const pcaDiv=document.getElementById('chart_pca');
   const pcaTable=document.getElementById('pca-table');
   if(!pcaDiv||!pcaTable)return;
+  const defaultColor='#DC7F9B';const defaultEdge='#760a2a';const defaultSize=8;
+  const accentColor=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#a78bfa';
+  let pinnedRank=null;
+  let baseSizes=null;
+  function storeBaseSizes(){
+    if(!baseSizes&&pcaDiv.data){
+      baseSizes=[];
+      for(let i=0;i<pcaDiv.data.length;i++){
+        const s=pcaDiv.data[i].marker?pcaDiv.data[i].marker.size:defaultSize;
+        baseSizes.push(Array.isArray(s)?s.slice():[s]);
+      }
+    }
+  }
+  function clearAll(){
+    pcaTable.querySelectorAll('tbody tr.pca-highlight').forEach(r=>r.classList.remove('pca-highlight'));
+    storeBaseSizes();
+    if(pcaDiv.data){
+      for(let i=0;i<pcaDiv.data.length;i++){
+        const n=(pcaDiv.data[i].x||[]).length;
+        Plotly.restyle(pcaDiv,{'marker.color':[Array(n).fill(defaultColor)],
+          'marker.size':[baseSizes?baseSizes[i]:Array(n).fill(defaultSize)],
+          'marker.line.color':[Array(n).fill(defaultEdge)]},i);
+      }
+    }
+  }
+  function getRank(pt){
+    const cd=pt.customdata;
+    if(Array.isArray(cd))return cd[0];
+    return cd;
+  }
+  function showHighlightByRank(rank){
+    storeBaseSizes();
+    pcaTable.querySelectorAll('tbody tr').forEach(r=>{
+      if(parseInt(r.dataset.rank)===rank)r.classList.add('pca-highlight');
+    });
+    if(pcaDiv.data){
+      for(let i=0;i<pcaDiv.data.length;i++){
+        const cd=pcaDiv.data[i].customdata||[];
+        const colors=cd.map(v=>{const r=Array.isArray(v)?v[0]:v;return r===rank?accentColor:defaultColor;});
+        const bs=baseSizes?baseSizes[i]:cd.map(()=>defaultSize);
+        const sizes=cd.map((v,j)=>{const r=Array.isArray(v)?v[0]:v;return r===rank?Math.max((bs[j]||defaultSize)+4,14):(bs[j]||defaultSize);});
+        const ec=cd.map(v=>{const r=Array.isArray(v)?v[0]:v;return r===rank?accentColor:defaultEdge;});
+        Plotly.restyle(pcaDiv,{'marker.color':[colors],'marker.size':[sizes],'marker.line.color':[ec]},i);
+      }
+    }
+  }
+  // Chart hover → table
+  pcaDiv.on('plotly_hover',function(evtData){
+    if(pinnedRank!==null)return;
+    if(!evtData||!evtData.points||!evtData.points.length)return;
+    const rank=getRank(evtData.points[0]);
+    if(rank===undefined||rank===null)return;
+    clearAll();showHighlightByRank(rank);
+    const row=pcaTable.querySelector('tbody tr[data-rank="'+rank+'"]');
+    if(row)row.scrollIntoView({behavior:'smooth',block:'nearest'});
+  });
+  pcaDiv.on('plotly_unhover',function(){
+    if(pinnedRank!==null)return;
+    clearAll();
+  });
+  // Chart click → pin
+  pcaDiv.on('plotly_click',function(evtData){
+    if(!evtData||!evtData.points||!evtData.points.length)return;
+    const rank=getRank(evtData.points[0]);
+    if(rank===undefined||rank===null)return;
+    if(pinnedRank===rank){pinnedRank=null;clearAll();return;}
+    pinnedRank=rank;clearAll();showHighlightByRank(rank);
+    const row=pcaTable.querySelector('tbody tr[data-rank="'+rank+'"]');
+    if(row)row.scrollIntoView({behavior:'smooth',block:'nearest'});
+  });
+  // Lasso select (keep existing behavior)
   pcaDiv.on('plotly_selected',function(evtData){
-    pcaTable.querySelectorAll('tbody tr').forEach(r=>r.classList.remove('pca-highlight'));
+    clearAll();pinnedRank=null;
     if(!evtData||!evtData.points)return;
-    const idxs=new Set(evtData.points.map(p=>p.customdata));
+    const idxs=new Set(evtData.points.map(p=>getRank(p)));
     pcaTable.querySelectorAll('tbody tr').forEach(r=>{
       if(idxs.has(parseInt(r.dataset.rank)))r.classList.add('pca-highlight');
     });
   });
-  pcaDiv.on('plotly_deselect',function(){
-    pcaTable.querySelectorAll('tbody tr').forEach(r=>r.classList.remove('pca-highlight'));
+  pcaDiv.on('plotly_deselect',function(){clearAll();pinnedRank=null;});
+  // Table hover → chart
+  pcaTable.querySelector('tbody').addEventListener('mouseenter',function(e){
+    const row=e.target.closest('tr');
+    if(!row||row.dataset.rank===undefined||pinnedRank!==null)return;
+    clearAll();showHighlightByRank(parseInt(row.dataset.rank));
+  },true);
+  pcaTable.querySelector('tbody').addEventListener('mouseleave',function(e){
+    const row=e.target.closest('tr');
+    if(!row||pinnedRank!==null)return;
+    clearAll();
+  },true);
+  // Table click → pin
+  pcaTable.querySelector('tbody').addEventListener('click',function(e){
+    const row=e.target.closest('tr');
+    if(!row||row.dataset.rank===undefined)return;
+    const rank=parseInt(row.dataset.rank);
+    if(pinnedRank===rank){pinnedRank=null;clearAll();return;}
+    pinnedRank=rank;clearAll();showHighlightByRank(rank);
   });
-  pcaTable.querySelectorAll('tbody tr').forEach(r=>{
-    r.addEventListener('click',()=>{
-      const rank=parseInt(r.dataset.rank);
-      const gd=pcaDiv;
-      const upd=[];
-      for(let i=0;i<gd.data.length;i++){
-        const cd=gd.data[i].customdata||[];
-        const colors=cd.map(v=>v===rank?'#ff004c':'#DC7F9B');
-        const sizes=cd.map(v=>v===rank?14:8);
-        Plotly.restyle(gd,{'marker.color':[colors],'marker.size':[sizes]},i);
+}
+function initClusterCrosstalk(){
+  const treeDiv=document.getElementById('chart_cluster_phylo');
+  const clTable=document.getElementById('cluster-enrich-table');
+  if(!treeDiv||!clTable)return;
+  const lineageData=window.__clusterLineage||{};
+  let pinnedCidx=null;
+  let baseSizes=null;
+  const defaultColor='#f4a58a';const defaultEdgeColor='#e07050';
+  const accentColor=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#a78bfa';
+  function storeBaseSizes(){
+    if(!baseSizes&&treeDiv.data&&treeDiv.data.length>1){
+      const s=treeDiv.data[1].marker.size;
+      baseSizes=Array.isArray(s)?s.slice():[];
+    }
+  }
+  function clearTree(){
+    if(treeDiv.data&&treeDiv.data.length>1){
+      storeBaseSizes();
+      const n=treeDiv.data[1].x.length;
+      Plotly.restyle(treeDiv,{'marker.color':[Array(n).fill(defaultColor)],
+        'marker.size':[baseSizes||treeDiv.data[1].marker.size],
+        'marker.line.color':[Array(n).fill(defaultEdgeColor)]},1);
+    }
+    while(treeDiv.data&&treeDiv.data.length>2){
+      Plotly.deleteTraces(treeDiv,treeDiv.data.length-1);
+    }
+  }
+  function clearTable(){
+    clTable.querySelectorAll('tbody tr.cluster-highlight').forEach(r=>r.classList.remove('cluster-highlight'));
+  }
+  function showHighlight(cidx){
+    storeBaseSizes();
+    // Highlight table row
+    clTable.querySelectorAll('tbody tr').forEach(r=>{
+      if(r.dataset.cidx===String(cidx))r.classList.add('cluster-highlight');
+    });
+    // Highlight tree node
+    if(treeDiv.data&&treeDiv.data.length>1){
+      const cd=treeDiv.data[1].customdata||[];
+      const colors=cd.map(v=>v===cidx?accentColor:defaultColor);
+      const sizes=(baseSizes||[]).map((s,j)=>cd[j]===cidx?Math.max(s+6,14):s);
+      const ec=cd.map(v=>v===cidx?accentColor:defaultEdgeColor);
+      Plotly.restyle(treeDiv,{'marker.color':[colors],'marker.size':[sizes],'marker.line.color':[ec]},1);
+    }
+    // Draw lineage path
+    const segs=lineageData[cidx];
+    if(segs&&segs.length){
+      const lx=[],ly=[];
+      segs.forEach(s=>{lx.push(s[0],s[2],null);ly.push(s[1],s[3],null);});
+      Plotly.addTraces(treeDiv,{x:lx,y:ly,mode:'lines',
+        line:{color:accentColor,width:3},showlegend:false,hoverinfo:'skip'});
+    }
+  }
+  // Table row hover → tree
+  clTable.querySelector('tbody').addEventListener('mouseenter',function(e){
+    const row=e.target.closest('tr');
+    if(!row||row.dataset.cidx===undefined||pinnedCidx!==null)return;
+    clearTree();clearTable();
+    showHighlight(parseInt(row.dataset.cidx));
+  },true);
+  clTable.querySelector('tbody').addEventListener('mouseleave',function(e){
+    const row=e.target.closest('tr');
+    if(!row||pinnedCidx!==null)return;
+    clearTree();clearTable();
+  },true);
+  // Table row click → pin/unpin
+  clTable.querySelector('tbody').addEventListener('click',function(e){
+    const row=e.target.closest('tr');
+    if(!row||row.dataset.cidx===undefined)return;
+    const cidx=parseInt(row.dataset.cidx);
+    if(pinnedCidx===cidx){pinnedCidx=null;clearTree();clearTable();return;}
+    pinnedCidx=cidx;
+    clearTree();clearTable();
+    showHighlight(cidx);
+  });
+  // Tree node hover → table
+  treeDiv.on('plotly_hover',function(evtData){
+    if(pinnedCidx!==null)return;
+    if(!evtData||!evtData.points||!evtData.points.length)return;
+    const pt=evtData.points[0];
+    if(pt.curveNumber!==1)return;
+    const cidx=pt.customdata;
+    if(cidx===undefined||cidx===null)return;
+    clearTree();clearTable();
+    showHighlight(cidx);
+    const row=clTable.querySelector('tbody tr[data-cidx="'+cidx+'"]');
+    if(row)row.scrollIntoView({behavior:'smooth',block:'nearest'});
+  });
+  treeDiv.on('plotly_unhover',function(){
+    if(pinnedCidx!==null)return;
+    clearTree();clearTable();
+  });
+  // Tree node click → pin/unpin
+  treeDiv.on('plotly_click',function(evtData){
+    if(!evtData||!evtData.points||!evtData.points.length)return;
+    const pt=evtData.points[0];
+    if(pt.curveNumber!==1)return;
+    const cidx=pt.customdata;
+    if(cidx===undefined||cidx===null)return;
+    if(pinnedCidx===cidx){pinnedCidx=null;clearTree();clearTable();return;}
+    pinnedCidx=cidx;
+    clearTree();clearTable();
+    showHighlight(cidx);
+    const row=clTable.querySelector('tbody tr[data-cidx="'+cidx+'"]');
+    if(row)row.scrollIntoView({behavior:'smooth',block:'nearest'});
+  });
+}
+function initRoundPhyloCrosstalk(){
+  document.querySelectorAll('[id^="chart_phylo_"]').forEach(treeDiv=>{
+    const rl=treeDiv.id.replace('chart_phylo_','');
+    const clTable=document.getElementById('phylo-table-'+rl);
+    if(!clTable)return;
+    const lineageData=window['__phyloLineage_'+rl]||{};
+    let pinnedIdx=null;
+    let baseSizes=null;
+    const defaultColor='#f4a58a';const defaultEdgeColor='#e07050';
+    const accentColor=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#a78bfa';
+    function storeBaseSizes(){
+      if(!baseSizes&&treeDiv.data&&treeDiv.data.length>1){
+        const s=treeDiv.data[1].marker.size;
+        baseSizes=Array.isArray(s)?s.slice():[];
       }
+    }
+    function clearTree(){
+      if(treeDiv.data&&treeDiv.data.length>1){
+        storeBaseSizes();
+        const n=treeDiv.data[1].x.length;
+        Plotly.restyle(treeDiv,{'marker.color':[Array(n).fill(defaultColor)],
+          'marker.size':[baseSizes||treeDiv.data[1].marker.size],
+          'marker.line.color':[Array(n).fill(defaultEdgeColor)]},1);
+      }
+      while(treeDiv.data&&treeDiv.data.length>2){
+        Plotly.deleteTraces(treeDiv,treeDiv.data.length-1);
+      }
+    }
+    function clearTable(){
+      clTable.querySelectorAll('tbody tr.cluster-highlight').forEach(r=>r.classList.remove('cluster-highlight'));
+    }
+    function showHighlight(lidx){
+      storeBaseSizes();
+      clTable.querySelectorAll('tbody tr').forEach(r=>{
+        if(r.dataset.lidx===String(lidx))r.classList.add('cluster-highlight');
+      });
+      if(treeDiv.data&&treeDiv.data.length>1){
+        const cd=treeDiv.data[1].customdata||[];
+        const colors=cd.map(v=>v===lidx?accentColor:defaultColor);
+        const sizes=(baseSizes||[]).map((s,j)=>cd[j]===lidx?Math.max(s+6,14):s);
+        const ec=cd.map(v=>v===lidx?accentColor:defaultEdgeColor);
+        Plotly.restyle(treeDiv,{'marker.color':[colors],'marker.size':[sizes],'marker.line.color':[ec]},1);
+      }
+      const segs=lineageData[lidx];
+      if(segs&&segs.length){
+        const lx=[],ly=[];
+        segs.forEach(s=>{lx.push(s[0],s[2],null);ly.push(s[1],s[3],null);});
+        Plotly.addTraces(treeDiv,{x:lx,y:ly,mode:'lines',
+          line:{color:accentColor,width:3},showlegend:false,hoverinfo:'skip'});
+      }
+    }
+    // Table hover → tree
+    clTable.querySelector('tbody').addEventListener('mouseenter',function(e){
+      const row=e.target.closest('tr');
+      if(!row||row.dataset.lidx===undefined||pinnedIdx!==null)return;
+      clearTree();clearTable();showHighlight(parseInt(row.dataset.lidx));
+    },true);
+    clTable.querySelector('tbody').addEventListener('mouseleave',function(e){
+      const row=e.target.closest('tr');
+      if(!row||pinnedIdx!==null)return;
+      clearTree();clearTable();
+    },true);
+    // Table click → pin/unpin
+    clTable.querySelector('tbody').addEventListener('click',function(e){
+      const row=e.target.closest('tr');
+      if(!row||row.dataset.lidx===undefined)return;
+      const lidx=parseInt(row.dataset.lidx);
+      if(pinnedIdx===lidx){pinnedIdx=null;clearTree();clearTable();return;}
+      pinnedIdx=lidx;clearTree();clearTable();showHighlight(lidx);
+    });
+    // Tree hover → table
+    treeDiv.on('plotly_hover',function(evtData){
+      if(pinnedIdx!==null)return;
+      if(!evtData||!evtData.points||!evtData.points.length)return;
+      const pt=evtData.points[0];
+      if(pt.curveNumber!==1)return;
+      const lidx=pt.customdata;
+      if(lidx===undefined||lidx===null)return;
+      clearTree();clearTable();showHighlight(lidx);
+      const row=clTable.querySelector('tbody tr[data-lidx="'+lidx+'"]');
+      if(row)row.scrollIntoView({behavior:'smooth',block:'nearest'});
+    });
+    treeDiv.on('plotly_unhover',function(){
+      if(pinnedIdx!==null)return;
+      clearTree();clearTable();
+    });
+    // Tree click → pin/unpin
+    treeDiv.on('plotly_click',function(evtData){
+      if(!evtData||!evtData.points||!evtData.points.length)return;
+      const pt=evtData.points[0];
+      if(pt.curveNumber!==1)return;
+      const lidx=pt.customdata;
+      if(lidx===undefined||lidx===null)return;
+      if(pinnedIdx===lidx){pinnedIdx=null;clearTree();clearTable();return;}
+      pinnedIdx=lidx;clearTree();clearTable();showHighlight(lidx);
+      const row=clTable.querySelector('tbody tr[data-lidx="'+lidx+'"]');
+      if(row)row.scrollIntoView({behavior:'smooth',block:'nearest'});
     });
   });
 }
@@ -2034,7 +2317,7 @@ function initXlExport(){
 }
 document.addEventListener('DOMContentLoaded',()=>{initTabs();initTheme();initTableSort();initTableFilter();
   initCsvExport();initPcaCrosstalk();initPcaFilters();initFamilyGroupToggle();
-  initPhyloPagination();initXlExport();});
+  initPhyloPagination();initXlExport();initClusterCrosstalk();initRoundPhyloCrosstalk();});
 """
 
 DASHBOARD_PALETTE = ['#a78bfa','#06b6d4','#f97316','#34d399','#f87171',
@@ -2092,8 +2375,9 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
 
     def _radial_layout(tree):
         """Equal-angle radial layout for a phylogenetic tree.
-        Returns (positions, edges) where positions maps clade key to (x, y)
-        and edges is list of ((x1,y1), (x2,y2)) coordinate pairs."""
+        Returns (positions, edges, lineages) where positions maps clade key to (x, y),
+        edges is list of ((x1,y1), (x2,y2)) coordinate pairs, and lineages maps each
+        leaf key to the list of edge indices forming its root-to-leaf path."""
         import math
 
         def count_terminals(clade):
@@ -2103,6 +2387,9 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
 
         positions = {}
         edges = []
+        # Track parent relationship for lineage reconstruction
+        parent_map = {}  # clade_key -> parent_clade_key
+        edge_lookup = {}  # (parent_key, child_key) -> edge_index
 
         def _key(clade):
             return clade.name if clade.name else f"_i{id(clade)}"
@@ -2122,24 +2409,48 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
                 bl = child.branch_length if child.branch_length and child.branch_length > 0 else 0.01
                 child_radius = radius + bl
                 layout(child, cur, cur + child_span, child_radius)
+                edge_idx = len(edges)
                 edges.append(((x, y), positions[_key(child)]))
+                parent_map[_key(child)] = _key(clade)
+                edge_lookup[(_key(clade), _key(child))] = edge_idx
                 cur += child_span
 
         layout(tree.root, 0, 2 * math.pi, 0)
-        return positions, edges
+
+        # Build lineages: for each leaf, collect edge indices from root to leaf
+        lineages = {}
+        root_key = _key(tree.root)
+        for clade_key in positions:
+            # Only include terminal nodes (leaves have names like "c0", "c1", etc.)
+            if clade_key.startswith('_i'):
+                continue  # internal node
+            # Walk from leaf up to root, collecting edge indices
+            path_edges = []
+            cur_key = clade_key
+            while cur_key in parent_map:
+                p_key = parent_map[cur_key]
+                eidx = edge_lookup.get((p_key, cur_key))
+                if eidx is not None:
+                    path_edges.append(eidx)
+                cur_key = p_key
+            path_edges.reverse()  # root-to-leaf order
+            lineages[clade_key] = path_edges
+
+        return positions, edges, lineages
 
     def _build_round_phylo(sequences, counts, total_rnd, seq_ann, round_label):
-        """Build a radial NJ phylogenetic tree figure for one round."""
+        """Build a radial NJ phylogenetic tree figure for one round.
+        Returns (fig, lineage_json) or (None, None)."""
         try:
             from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
             from Bio.Align import MultipleSeqAlignment
             from Bio.Seq import Seq
             from Bio.SeqRecord import SeqRecord
         except ImportError:
-            return None
+            return None, None
 
         if len(sequences) < 3:
-            return None
+            return None, None
 
         max_len = max(len(s) for s in sequences)
         records = []
@@ -2156,7 +2467,7 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
         constructor = DistanceTreeConstructor()
         tree = constructor.nj(dm)
 
-        positions, edges = _radial_layout(tree)
+        positions, edges, lineages = _radial_layout(tree)
 
         fig = go.Figure()
 
@@ -2171,13 +2482,14 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
             showlegend=False, hoverinfo='skip'))
 
         # Leaf nodes: size ∝ log10(CPM), salmon color
-        leaf_x, leaf_y, leaf_sizes, leaf_hover = [], [], [], []
-        for sid, seq in id_to_seq.items():
+        leaf_x, leaf_y, leaf_sizes, leaf_hover, leaf_customdata = [], [], [], [], []
+        for i, (sid, seq) in enumerate(id_to_seq.items()):
             if sid not in positions:
                 continue
             x, y = positions[sid]
             leaf_x.append(x)
             leaf_y.append(y)
+            leaf_customdata.append(i)
             cnt = counts[seq]
             cpm = cnt / total_rnd * 1e6
             ann = seq_ann.get(seq, {})
@@ -2196,34 +2508,48 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
             x=leaf_x, y=leaf_y, mode='markers',
             marker=dict(size=leaf_sizes, color='#f4a58a', opacity=0.85,
                         line=dict(color='#e07050', width=1)),
+            customdata=leaf_customdata,
             text=leaf_hover, hoverinfo='text', showlegend=False))
 
         fig.update_layout(**_base_layout(
             xaxis=dict(visible=False), yaxis=dict(visible=False, scaleanchor='x'),
             height=520, margin=dict(l=10, r=10, t=10, b=10)))
 
-        return fig
+        # Build lineage edge coordinate dict for JS crosstalk
+        import json as _json
+        lineage_edges = {}
+        for i, sid in enumerate(id_to_seq.keys()):
+            edge_idxs = lineages.get(sid, [])
+            if edge_idxs:
+                coords = []
+                for eidx in edge_idxs:
+                    (x1, y1), (x2, y2) = edges[eidx]
+                    coords.append([round(x1, 6), round(y1, 6), round(x2, 6), round(y2, 6)])
+                lineage_edges[i] = coords
+        lineage_json = _json.dumps(lineage_edges)
+
+        return fig, lineage_json
 
     def _build_cluster_phylo(cluster_df, annotations_df, rounds_data_dict, round_names_list, max_clusters=100):
         """Build a radial NJ tree of top enriched cluster leads using Gonnet matrix.
-        Returns (fig, matrix_name) or (None, None)."""
+        Returns (fig, matrix_name, lineage_json, family_to_idx) or (None, None, None, None)."""
         try:
             from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
             from Bio.Align import MultipleSeqAlignment
             from Bio.Seq import Seq
             from Bio.SeqRecord import SeqRecord
         except ImportError:
-            return None, None
+            return None, None, None, None
 
         if cluster_df is None or cluster_df.empty:
-            return None, None
+            return None, None, None, None
 
         # Get top clusters sorted by last-round CPM
         last_rnd = round_names_list[-1]
         last_cpm_key = f'{last_rnd}_cpm'
         top_cl = cluster_df.head(max_clusters).copy()
         if len(top_cl) < 3:
-            return None, None
+            return None, None, None, None
 
         # Map family → representative full protein sequence (prefer full seq over CDR3)
         fam_to_seq = {}
@@ -2249,7 +2575,7 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
             meta.append((fam, cdr3, float(cpm), int(size)))
 
         if len(seq_list) < 3:
-            return None, None
+            return None, None, None, None
 
         # Pad to equal length and build MSA
         max_len = max(len(s) for s in seq_list)
@@ -2273,7 +2599,7 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
                 dm = DistanceCalculator('identity').get_distance(aln)
 
         tree = DistanceTreeConstructor().nj(dm)
-        positions, edges = _radial_layout(tree)
+        positions, edges, lineages = _radial_layout(tree)
 
         fig = go.Figure()
 
@@ -2287,18 +2613,21 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
             line=dict(color='#9ca3af', width=1),
             showlegend=False, hoverinfo='skip'))
 
-        # Leaf nodes
-        leaf_x, leaf_y, leaf_sizes, leaf_hover = [], [], [], []
+        # Leaf nodes — track customdata (leaf index) for JS crosstalk
+        leaf_x, leaf_y, leaf_sizes, leaf_hover, leaf_customdata = [], [], [], [], []
+        leaf_idx_map = {}  # maps sequential leaf position → meta index i
         for i, (fam, cdr3, cpm, size) in enumerate(meta):
             sid = f"c{i}"
             if sid not in positions:
                 continue
             x, y = positions[sid]
+            leaf_idx_map[len(leaf_x)] = i
             leaf_x.append(x)
             leaf_y.append(y)
             log_cpm = np.log10(max(cpm, 1))
             sz = max(4, min(35, (log_cpm - 2.5) * 12))
             leaf_sizes.append(sz)
+            leaf_customdata.append(i)
             leaf_hover.append(
                 f'CDR3: {cdr3}<br>Family: {fam}<br>'
                 f'CPM: {cpm:,.0f}<br>Cluster size: {size}')
@@ -2307,13 +2636,31 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
             x=leaf_x, y=leaf_y, mode='markers',
             marker=dict(size=leaf_sizes, color='#f4a58a', opacity=0.85,
                         line=dict(color='#e07050', width=1)),
+            customdata=leaf_customdata,
             text=leaf_hover, hoverinfo='text', showlegend=False))
 
         fig.update_layout(**_base_layout(
             xaxis=dict(visible=False), yaxis=dict(visible=False, scaleanchor='x'),
             height=560, margin=dict(l=10, r=10, t=10, b=10)))
 
-        return fig, matrix_used
+        # Build lineage edge coordinate dict for JS crosstalk
+        import json as _json
+        lineage_edges = {}
+        for i, (fam, cdr3, cpm, size) in enumerate(meta):
+            sid = f"c{i}"
+            edge_idxs = lineages.get(sid, [])
+            if edge_idxs:
+                coords = []
+                for eidx in edge_idxs:
+                    (x1, y1), (x2, y2) = edges[eidx]
+                    coords.append([round(x1, 6), round(y1, 6), round(x2, 6), round(y2, 6)])
+                lineage_edges[i] = coords
+        lineage_json = _json.dumps(lineage_edges)
+
+        # Map family name → meta index for table row tagging
+        family_to_idx = {fam: i for i, (fam, _, _, _) in enumerate(meta)}
+
+        return fig, matrix_used, lineage_json, family_to_idx
 
     # ── Tab 1: Overview ──────────────────────────────────────────────────
 
@@ -2414,7 +2761,7 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
         # Build the data table rows
         table_id = f'phylo-table-{rl}'
         trows = ''
-        for seq, cnt in top100:
+        for lidx, (seq, cnt) in enumerate(top100):
             cpm = cnt / total_rnd * 1e6
             prop = cnt / total_rnd
             ann = seq_to_ann.get(seq, {})
@@ -2422,7 +2769,7 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
                     else (ann['CDR3'] if 'CDR3' in ann.index else ''))
             family = (ann.get('clone_family', '') if isinstance(ann, dict)
                       else (ann['clone_family'] if 'clone_family' in ann.index else ''))
-            trows += (f'<tr>'
+            trows += (f'<tr data-lidx="{lidx}">'
                       f'<td>{cdr3 if cdr3 else seq[:20]}</td>'
                       f'<td data-val="{cnt}">{cnt:,}</td>'
                       f'<td data-val="{prop:.6f}">{prop:.4f}</td>'
@@ -2457,14 +2804,16 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
         </div>'''
 
         try:
-            fig_tree = _build_round_phylo(seqs, cnts, total_rnd, seq_to_ann, rl)
+            fig_tree, rnd_lineage_json = _build_round_phylo(seqs, cnts, total_rnd, seq_to_ann, rl)
             _phylo_fig_legend = _legend("Radial phylogenetic tree of the top 100 most abundant sequences in this round, built from pairwise BLOSUM62 alignment distances using neighbor-joining. Bubble size is proportional to log\u2081\u2080(CPM). Tight clusters indicate sequence families with shared CDR3 regions. Dominant clones appear as large bubbles. Comparing trees across rounds reveals which families expand during panning.")
             if fig_tree is not None:
+                rnd_lineage_script = f'<script>window.__phyloLineage_{rl}={rnd_lineage_json};</script>'
                 treemap_html += (f'<div class="chart-card">'
                                  f'<div class="chart-title">Most abundant sequences in {rnd}</div>'
                                  f'{_phylo_fig_legend}'
                                  f'{_legend_html}'
                                  f'{_to_div(fig_tree, f"chart_phylo_{rl}")}'
+                                 f'{rnd_lineage_script}'
                                  f'{table_html}</div>')
             else:
                 treemap_html += (f'<div class="chart-card">'
@@ -2862,16 +3211,21 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
         family_sizes = annotations.groupby('clone_family').size().to_dict() if not annotations.empty else {}
 
         # ── Radial tree of top 100 enriched clusters ──
+        cl_fam_to_idx = {}
         try:
-            cl_fig, cl_matrix = _build_cluster_phylo(
+            cl_fig, cl_matrix, cl_lineage_json, cl_fam_to_idx_ret = _build_cluster_phylo(
                 clone_tracking, annotations, rounds_data, round_names, max_clusters=100)
+            if cl_fam_to_idx_ret:
+                cl_fam_to_idx = cl_fam_to_idx_ret
             if cl_fig is not None:
                 cl_subtitle = f'using {cl_matrix}'
+                lineage_script = f'<script>window.__clusterLineage={cl_lineage_json};</script>'
                 cluster_tree_html = (
                     f'<div style="color:var(--text-dim);font-size:12px;font-family:var(--mono);'
                     f'margin-bottom:4px">{cl_subtitle}</div>'
                     f'{_legend_html}'
-                    f'{_to_div(cl_fig, "chart_cluster_phylo")}')
+                    f'{_to_div(cl_fig, "chart_cluster_phylo")}'
+                    f'{lineage_script}')
             else:
                 cluster_tree_html = _placeholder(
                     '&#x1F333;', 'Too few clusters for tree', 'Need >= 3 enriched clusters')
@@ -2887,6 +3241,8 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
             fam = crow['clone_family']
             cdr3 = crow.get('representative_CDR3', '')
             size = family_sizes.get(fam, 1)
+            cidx = cl_fam_to_idx.get(fam)
+            cidx_attr = f' data-cidx="{cidx}"' if cidx is not None else ''
             cells = (f'<td title="{cdr3}">{cdr3}</td>'
                      f'<td data-val="{size}">{size}</td>')
             for rnd in round_names:
@@ -2897,7 +3253,7 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
             cells += f'<td data-val="{enr if not np.isinf(enr) else 1e9}">{fold_str}</td>'
             l2fc = crow.get('log2fc', 0)
             cells += f'<td data-val="{l2fc:.2f}">{l2fc:.2f}</td>'
-            ct_rows += f'<tr>{cells}</tr>'
+            ct_rows += f'<tr{cidx_attr}>{cells}</tr>'
 
         ct_headers = (['cluster_lead', 'cluster_size']
                       + [f'{r.replace("Round", "R")}_CPM' for r in round_names]
