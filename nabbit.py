@@ -2789,9 +2789,10 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
                 f'<div class="legend-body">{text}</div></details>')
 
     def _placeholder(icon, text, hint=''):
+        hint_html = (f'<div class="placeholder-text" style="margin-top:6px;font-size:11px">{hint}</div>' if hint else '')
         return (f'<div class="placeholder"><div class="placeholder-icon">{icon}</div>'
                 f'<div class="placeholder-text">{text}</div>'
-                f'{"<div class=\"placeholder-text\" style=\"margin-top:6px;font-size:11px\">" + hint + "</div>" if hint else ""}'
+                f'{hint_html}'
                 f'</div>')
 
     def _radial_layout(tree):
