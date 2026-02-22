@@ -1679,6 +1679,14 @@ input[type=checkbox]:hover{border-color:var(--accent)}
 input[type=checkbox]:checked{background:var(--accent);border-color:var(--accent)}
 input[type=checkbox]:checked::after{content:'';position:absolute;left:4.5px;top:1.5px;width:4px;height:8px;
   border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+select{-webkit-appearance:none;appearance:none;background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);padding:6px 28px 6px 10px;border-radius:6px;font-size:12px;font-family:var(--mono);
+  cursor:pointer;transition:all .15s;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a8094'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 8px center}
+select:hover{border-color:var(--accent)}
+select:focus{outline:none;border-color:var(--accent)}
+select option{background:var(--surface2);color:var(--text)}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;line-height:1.5;min-height:100vh}
 .container{max-width:1280px;margin:0 auto;padding:32px 24px}
 .header{margin-bottom:32px;display:flex;align-items:center;justify-content:space-between}
@@ -1774,8 +1782,7 @@ table.enrich-table tr.cluster-highlight td{background:rgba(244,165,138,0.15)!imp
 .phylo-legend svg circle{fill:#f4a58a;stroke:#e07050;stroke-width:1}
 .phylo-paginated{margin-top:16px}
 .phylo-entries-bar{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:var(--text-dim);font-family:var(--mono)}
-.phylo-page-size{background:var(--surface2);border:1px solid var(--border);color:var(--text);
-  padding:4px 8px;border-radius:6px;font-size:11px;font-family:var(--mono)}
+.phylo-page-size{font-size:11px;padding:4px 24px 4px 8px}
 .phylo-page-controls{display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px}
 .phylo-page-info{font-size:12px;color:var(--text-dim);font-family:var(--mono)}
 .phylo-page-nav{display:flex;align-items:center;gap:4px}
@@ -3796,6 +3803,14 @@ input[type=checkbox]:hover{border-color:var(--accent)}
 input[type=checkbox]:checked{background:var(--accent);border-color:var(--accent)}
 input[type=checkbox]:checked::after{content:'';position:absolute;left:4.5px;top:1.5px;width:4px;height:8px;
   border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+select{-webkit-appearance:none;appearance:none;background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);padding:6px 28px 6px 10px;border-radius:6px;font-size:12px;font-family:var(--mono);
+  cursor:pointer;transition:all .15s;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a8094'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 8px center}
+select:hover{border-color:var(--accent)}
+select:focus{outline:none;border-color:var(--accent)}
+select option{background:var(--surface2);color:var(--text)}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;line-height:1.5;min-height:100vh}
 .container{max-width:900px;margin:0 auto;padding:32px 24px}
 .header{margin-bottom:32px;display:flex;align-items:center;justify-content:space-between}
@@ -3839,8 +3854,7 @@ table.pairs-table th{background:var(--surface2);color:var(--text-dim);padding:10
   text-align:left;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;
   text-transform:uppercase;letter-spacing:0.5px}
 table.pairs-table td{padding:8px;border-bottom:1px solid var(--border);color:var(--text-dim)}
-table.pairs-table select{background:var(--surface2);border:1px solid var(--border);color:var(--text);
-  padding:4px 8px;border-radius:6px;font-size:12px;font-family:var(--mono)}
+table.pairs-table select{font-size:12px}
 .btn-remove{background:none;border:1px solid var(--border);color:var(--text-dim);width:26px;height:26px;
   border-radius:6px;cursor:pointer;font-size:16px;line-height:1;display:inline-flex;align-items:center;
   justify-content:center;transition:all 0.15s}
