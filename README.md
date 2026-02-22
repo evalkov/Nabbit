@@ -20,53 +20,73 @@ Nanobody NGS enrichment analysis pipeline for phage/yeast display selections fro
 
 ## Requirements
 
-- Python 3.10+
+- **Python 3.12 or higher** (3.12, 3.13, 3.14 are all supported)
 - Operating system: macOS or Linux
+
+> **Important:** Python 3.11 and earlier are **not supported** due to f-string syntax requirements introduced in Python 3.12. Check your version with `python3 --version`.
+
+### Installation
+
+A virtual environment is **strongly recommended** to avoid dependency conflicts:
+
+```bash
+# Clone the repository
+git clone https://github.com/evalkov/Nabbit.git
+cd Nabbit
+
+# Create and activate a virtual environment
+python3 -m venv venv
+source venv/bin/activate    # macOS / Linux
+# venv\Scripts\activate     # Windows (not officially supported)
+
+# Install all dependencies
+pip install numpy pandas scipy matplotlib plotly biopython scikit-learn
+```
 
 ### Core dependencies (required)
 
-```
-numpy
-pandas
-scipy
-matplotlib
-```
+These must be installed for the pipeline to run:
 
-### Dashboard (required for interactive HTML report)
+| Package | Purpose |
+|---------|---------|
+| `numpy` | Numerical operations |
+| `pandas` | Data frames and tabular output |
+| `scipy` | Diversity statistics, clustering |
+| `matplotlib` | Static plot generation |
 
-```
-plotly
-```
+### Dashboard dependency
+
+| Package | Purpose |
+|---------|---------|
+| `plotly` | Interactive HTML dashboard (`dashboard.html`) |
+
+Without `plotly`, the pipeline runs but skips dashboard generation. Use `--no-dashboard` to suppress the warning.
 
 ### Optional dependencies
 
+These enable additional features and degrade gracefully if not installed:
+
 | Package | Install | Enables |
 |---------|---------|---------|
-| `ablang` | `pip install ablang` | AbLang pseudo-perplexity scoring (`--ablang`) |
-| `biopython` | `pip install biopython` | Phylogenetic trees, cluster PCA |
+| `biopython` | `pip install biopython` | Phylogenetic trees, cluster PCA, CDR3 trees |
 | `scikit-learn` | `pip install scikit-learn` | Cluster PCA projections |
+| `ablang` | `pip install ablang` | AbLang pseudo-perplexity scoring (`--ablang`) |
 | `igblast` | `conda install -c bioconda igblast` | V/D/J germline annotation (`--igblast`) |
 
-### Quick install
+### Install everything at once
 
 ```bash
-# Create a virtual environment (recommended)
-python3 -m venv venv
-source venv/bin/activate
-
-# Install all dependencies
-pip3 install numpy pandas scipy matplotlib plotly biopython scikit-learn
-
-# Optional
-pip3 install ablang
+# Required + all optional (except igblast which needs conda)
+pip install numpy pandas scipy matplotlib plotly biopython scikit-learn ablang
 ```
 
 ### HPC (Biowulf / SLURM)
 
 ```bash
-module load python/3.11
-# numpy, pandas, scipy, matplotlib are typically pre-installed
-pip3 install --user plotly ablang biopython scikit-learn
+module load python/3.12   # or higher
+python3 -m venv ~/.local/nabbit_venv
+source ~/.local/nabbit_venv/bin/activate
+pip install numpy pandas scipy matplotlib plotly biopython scikit-learn
 ```
 
 ## Usage
