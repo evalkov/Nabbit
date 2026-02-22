@@ -1666,6 +1666,12 @@ DASHBOARD_CSS = """
   --teal:#0891b2;--orange:#ea580c;--green:#059669;--red:#dc2626;
 }
 *{margin:0;padding:0;box-sizing:border-box}
+*::-webkit-scrollbar{width:8px;height:8px}
+*::-webkit-scrollbar-track{background:var(--surface);border-radius:4px}
+*::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+*::-webkit-scrollbar-thumb:hover{background:var(--text-dim)}
+*::-webkit-scrollbar-corner{background:var(--surface)}
+*{scrollbar-width:thin;scrollbar-color:var(--border) var(--surface)}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;line-height:1.5;min-height:100vh}
 .container{max-width:1280px;margin:0 auto;padding:32px 24px}
 .header{margin-bottom:32px;display:flex;align-items:center;justify-content:space-between}
@@ -3721,19 +3727,28 @@ def _build_enrichment_table(top_df, annotations, rds):
 
     th_html = ''.join(f'<th>{c}<span class="sort-arrow">&#x25B2;</span></th>' for c in header_cols)
 
-    return f'''
+    return f'''<div class="phylo-paginated">
     <div class="table-controls">
-      <input type="text" class="table-search" data-table="enrichment-table" placeholder="Search sequences...">
+      <input type="text" class="phylo-search" placeholder="Search sequences...">
       <button class="btn-export" data-table="enrichment-table">Export CSV</button>
-      <label style="font-size:12px;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:4px;margin-left:8px">
+      <label style="font-size:12px;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:4px;margin-left:8px">
         <input type="checkbox" id="group-by-family" style="accent-color:var(--accent)">Group by family
       </label>
+      <span class="phylo-entries-bar">Show
+        <select class="phylo-page-size"><option value="10">10</option>
+          <option value="25" selected>25</option><option value="50">50</option>
+          <option value="100">100</option></select> entries</span>
     </div>
-    <div style="overflow-x:auto;max-height:600px;overflow-y:auto">
+    <div style="overflow-x:auto">
     <table class="enrich-table" id="enrichment-table">
       <thead><tr>{th_html}</tr></thead>
       <tbody>{''.join(rows_html)}</tbody>
     </table>
+    </div>
+    <div class="phylo-page-controls">
+      <div class="phylo-page-info"></div>
+      <div class="phylo-page-nav"></div>
+    </div>
     </div>'''
 
 
