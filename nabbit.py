@@ -3488,6 +3488,63 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
     if not chart_clone_dyn:
         chart_clone_dyn = _placeholder('&#x1F9EC;', 'Clone tracking data not available')
 
+    # Clonal Dominance — fraction of reads by abundance rank
+    chart_clonal_dom = ''
+    if rds:
+        dom_colors = ['#edf8b1', '#c7e9b4', '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8']
+        dom_bins = [('Top 1–10', 0, 10), ('11–100', 10, 100),
+                    ('101–1 k', 100, 1000), ('1 k–3 k', 1000, 3000),
+                    ('3 k–10 k', 3000, 10000), ('10 k+', 10000, None)]
+        fig_cdom = go.Figure()
+        for bi, (bname, lo, hi) in enumerate(dom_bins):
+            y_vals = []
+            for rnd in rds:
+                mc = rounds_data[rnd].most_common()
+                total = sum(c for _, c in mc)
+                if total == 0:
+                    y_vals.append(0)
+                    continue
+                bin_sum = sum(c for j, (_, c) in enumerate(mc)
+                              if j >= lo and (hi is None or j < hi))
+                y_vals.append(bin_sum / total * 100)
+            fig_cdom.add_trace(go.Bar(
+                x=labels, y=y_vals, name=bname,
+                marker_color=dom_colors[bi],
+                hovertemplate=f'{bname}<br>%{{x}}: %{{y:.1f}}%<extra></extra>'))
+        fig_cdom.update_layout(**_base_layout(barmode='stack',
+                               xaxis_title='Round', yaxis_title='% of Reads'))
+        chart_clonal_dom = _to_div(fig_cdom, 'chart_clonal_dom')
+    if not chart_clonal_dom:
+        chart_clonal_dom = _placeholder('&#x1F4CA;', 'Clonal dominance data not available')
+
+    # Clone Frequency Spectrum — fraction of unique seqs by count level
+    chart_freq_spec = ''
+    if rds:
+        spec_colors = ['#d73027', '#fc8d59', '#fee08b', '#d9ef8b', '#91cf60', '#1a9850']
+        spec_bins = [('Singletons (1)', 1, 1), ('2–3', 2, 3), ('4–10', 4, 10),
+                     ('11–30', 11, 30), ('31–100', 31, 100), ('101+', 101, None)]
+        fig_fspec = go.Figure()
+        for bi, (bname, lo, hi) in enumerate(spec_bins):
+            y_vals = []
+            for rnd in rds:
+                counts = list(rounds_data[rnd].values())
+                total_unique = len(counts)
+                if total_unique == 0:
+                    y_vals.append(0)
+                    continue
+                bin_count = sum(1 for c in counts
+                                if c >= lo and (hi is None or c <= hi))
+                y_vals.append(bin_count / total_unique * 100)
+            fig_fspec.add_trace(go.Bar(
+                x=labels, y=y_vals, name=bname,
+                marker_color=spec_colors[bi],
+                hovertemplate=f'{bname}<br>%{{x}}: %{{y:.1f}}%<extra></extra>'))
+        fig_fspec.update_layout(**_base_layout(barmode='stack',
+                                xaxis_title='Round', yaxis_title='% of Unique Clones'))
+        chart_freq_spec = _to_div(fig_fspec, 'chart_freq_spec')
+    if not chart_freq_spec:
+        chart_freq_spec = _placeholder('&#x1F4CA;', 'Frequency spectrum data not available')
+
     tab3_html = f'''
     <div id="tab-diversity" class="tab-content">
       <div class="chart-row">
@@ -3497,6 +3554,10 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
       <div class="chart-row">
         <div class="chart-card"><div class="chart-title">Saturation Curves</div>{_legend("Rarefaction curves showing the number of unique sequences discovered as a function of sampling depth for each round. A curve that plateaus has been sequenced to sufficient depth \u2014 most unique sequences have been observed. Curves still rising linearly indicate under-sampling. Horizontal dashed lines show estimated total diversity using the Chao1 estimator.")}{chart_sat}</div>
         <div class="chart-card"><div class="chart-title">Clone Family Dynamics</div>{_legend("Stacked area chart tracking the top 8 clone families by frequency across rounds. Families that expand to dominate later rounds are strong enrichment candidates. The &quot;Other&quot; category represents all remaining families. A single family dominating &gt;50% of late rounds suggests very strong selection. Competing families may indicate multiple binding epitopes or modes.")}{chart_clone_dyn}</div>
+      </div>
+      <div class="chart-row">
+        <div class="chart-card"><div class="chart-title">Clonal Dominance</div>{_legend("Proportion of total sequencing reads attributed to clones ranked by abundance. In early rounds, reads are distributed across many clones. In later rounds, the top 10\u2013100 clones dominate, indicating successful selection.")}{chart_clonal_dom}</div>
+        <div class="chart-card"><div class="chart-title">Clone Frequency Spectrum</div>{_legend("Distribution of unique clone frequencies. Singletons (count&nbsp;=&nbsp;1) dominate early rounds, reflecting library diversity. Later rounds accumulate high-count clones as selection amplifies specific binders.")}{chart_freq_spec}</div>
       </div>
     </div>'''
 
