@@ -2879,14 +2879,12 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
 
     def _build_round_phylo(sequences, counts, total_rnd, seq_ann, round_label):
         """Build a radial NJ phylogenetic tree figure for one round.
-        Returns (fig, lineage_json) or (None, None)."""
-        try:
-            from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
-            from Bio.Align import MultipleSeqAlignment
-            from Bio.Seq import Seq
-            from Bio.SeqRecord import SeqRecord
-        except ImportError:
-            return None, None
+        Returns (fig, lineage_json), or (None, None) if too few sequences.
+        Raises ImportError if biopython is missing."""
+        from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
+        from Bio.Align import MultipleSeqAlignment
+        from Bio.Seq import Seq
+        from Bio.SeqRecord import SeqRecord
 
         if len(sequences) < 3:
             return None, None
