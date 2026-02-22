@@ -1678,11 +1678,17 @@ DASHBOARD_CSS = """
   --text:#e2e4e9;--text-dim:#7a8094;--accent:#a78bfa;
   --teal:#06b6d4;--orange:#f97316;--green:#34d399;--red:#f87171;
   --mono:'IBM Plex Mono',monospace;
+  --aln-hydrophobic:#4a86c8;--aln-positive:#e05656;--aln-negative:#b07cc8;
+  --aln-polar:#56b870;--aln-aromatic:#e8963e;--aln-cysteine:#e88ba0;
+  --aln-glycine:#cc8844;--aln-proline:#cccc44;
 }
 [data-theme=light]{
   --bg:#f5f5f7;--surface:#ffffff;--surface2:#eeeef0;--border:#d4d4d8;
   --text:#1a1a2e;--text-dim:#6b7280;--accent:#7c3aed;
   --teal:#0891b2;--orange:#ea580c;--green:#059669;--red:#dc2626;
+  --aln-hydrophobic:#6a9fd8;--aln-positive:#d84040;--aln-negative:#9b5fb5;
+  --aln-polar:#3da357;--aln-aromatic:#d88030;--aln-cysteine:#d07088;
+  --aln-glycine:#b87a3a;--aln-proline:#b8b830;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 *::-webkit-scrollbar{width:8px;height:8px}
@@ -1835,6 +1841,41 @@ table.enrich-table tr.cluster-highlight td{background:rgba(244,165,138,0.15)!imp
 .btn-export-xl{background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);
   padding:8px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-family:var(--mono);transition:all .2s}
 .btn-export-xl:hover{border-color:#34d399;color:#34d399}
+.aln-viewer{margin-top:12px}
+.aln-color-key{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;
+  font-size:11px;font-family:var(--mono);color:var(--text-dim)}
+.aln-color-key .aln-key-item{display:inline-flex;align-items:center;gap:4px}
+.aln-color-key .aln-key-swatch{width:14px;height:14px;border-radius:3px;display:inline-block}
+.aln-container{display:flex;position:relative}
+.aln-names{flex:0 0 160px;overflow:hidden;background:var(--surface);z-index:2;border-right:1px solid var(--border)}
+.aln-names .aln-name-spacer{height:20px}
+.aln-names .aln-name{height:18px;line-height:18px;font-size:11px;font-family:var(--mono);
+  color:var(--text-dim);padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.aln-names .aln-name:hover{color:var(--text);background:var(--surface2)}
+.aln-names .aln-name-spacer-bottom{height:32px}
+.aln-scroll{flex:1;overflow-x:auto;overflow-y:hidden}
+.aln-ruler{display:flex;height:20px;line-height:20px;white-space:nowrap}
+.aln-ruler .aln-tick{font-size:9px;font-family:var(--mono);color:var(--text-dim);text-align:center}
+.aln-grid{white-space:nowrap;position:relative}
+.aln-row{display:flex;height:18px}
+.aln-row.dimmed .aln-cell{opacity:.25}
+.aln-cell{width:14px;height:18px;line-height:18px;text-align:center;font-size:11px;
+  font-family:var(--mono);font-weight:600;color:var(--text-dim);flex-shrink:0;cursor:default;
+  background:transparent}
+.aln-cell.gap{color:var(--text-dim);font-weight:400;opacity:.3}
+.aln-cdr-outline{position:absolute;border:1px solid rgba(255,255,255,0.5);border-radius:4px;pointer-events:none}
+.aln-cdr-label{position:absolute;font-size:10px;font-family:var(--mono);font-weight:700;
+  pointer-events:none;color:#fff;letter-spacing:.5px}
+.aln-show-control{display:flex;align-items:center;gap:8px;margin-bottom:10px;
+  font-size:12px;font-family:var(--mono);color:var(--text-dim)}
+.aln-show-control select{display:none}
+.aln-conservation{display:flex;height:32px;align-items:flex-end;margin-top:2px}
+.aln-cons-bar{width:14px;flex-shrink:0;border-radius:2px 2px 0 0;min-height:1px}
+.aln-cons-scores{display:flex;height:14px;line-height:14px;white-space:nowrap}
+.aln-cons-digit{width:14px;flex-shrink:0;text-align:center;font-size:9px;font-family:var(--mono);font-weight:600}
+.aln-tooltip{position:fixed;background:var(--surface2);border:1px solid var(--border);
+  border-radius:6px;padding:6px 10px;font-size:11px;font-family:var(--mono);color:var(--text);
+  pointer-events:none;z-index:1000;display:none;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,0.3)}
 """
 
 DASHBOARD_JS = """
@@ -2519,9 +2560,185 @@ function initCustomSelects(){
   });
   document.addEventListener('click',()=>{document.querySelectorAll('.custom-select.open').forEach(w=>w.classList.remove('open'));});
 }
+function initAlignmentViewer(){
+  var d=window.__alignmentData;if(!d)return;
+  var viewer=document.getElementById('aln-viewer');if(!viewer)return;
+  var allNames=d.names,allAligned=d.aligned,regions=d.regions,allCons=d.conservation;
+  var ncols=allAligned[0].length,totalRows=allAligned.length;
+  var CW=14,CONS_H=32,ROW_H=18;
+  var colorMap={A:'hydrophobic',I:'hydrophobic',L:'hydrophobic',M:'hydrophobic',V:'hydrophobic',
+    R:'positive',K:'positive',H:'positive',D:'negative',E:'negative',
+    S:'polar',T:'polar',N:'polar',Q:'polar',F:'aromatic',W:'aromatic',Y:'aromatic',
+    C:'cysteine',G:'glycine',P:'proline'};
+  var cs=getComputedStyle(document.documentElement);
+  function getColors(){return{hydrophobic:cs.getPropertyValue('--aln-hydrophobic').trim(),
+    positive:cs.getPropertyValue('--aln-positive').trim(),negative:cs.getPropertyValue('--aln-negative').trim(),
+    polar:cs.getPropertyValue('--aln-polar').trim(),aromatic:cs.getPropertyValue('--aln-aromatic').trim(),
+    cysteine:cs.getPropertyValue('--aln-cysteine').trim(),glycine:cs.getPropertyValue('--aln-glycine').trim(),
+    proline:cs.getPropertyValue('--aln-proline').trim()};}
+  var colors=getColors();
+  // Build column-to-region mapping from regions array
+  var colRegion=[];
+  var cdrSpans=[];
+  var col=0;
+  regions.forEach(function(r){
+    if(r.name.startsWith('CDR')){cdrSpans.push({name:r.name,colStart:col,colEnd:col+r.len});}
+    for(var i=0;i<r.len;i++)colRegion.push(r.name);
+    col+=r.len;
+  });
+  var namePanel=viewer.querySelector('.aln-names');
+  var scrollPanel=viewer.querySelector('.aln-scroll');
+  var tip=document.getElementById('aln-tooltip');
+  // Show-count dropdown
+  var showSel=document.getElementById('aln-show-count');
+  // Clamp dropdown options to available data
+  if(showSel){
+    var opts=showSel.options;
+    for(var i=opts.length-1;i>=0;i--){if(parseInt(opts[i].value)>totalRows)showSel.remove(i);}
+    if(!showSel.querySelector('option[value="'+totalRows+'"]')&&totalRows>0){
+      var o=document.createElement('option');o.value=totalRows;o.textContent=totalRows;showSel.appendChild(o);
+    }
+  }
+  function render(showCount){
+    var nrows=Math.min(showCount,totalRows);
+    var names=allNames.slice(0,nrows);
+    var aligned=allAligned.slice(0,nrows);
+    // Recompute conservation for visible rows (gaps excluded)
+    var cons=[];
+    for(var ci=0;ci<ncols;ci++){
+      var counts={};
+      for(var ri=0;ri<nrows;ri++){var aa=aligned[ri][ci];if(aa!=='-'){counts[aa]=(counts[aa]||0)+1;}}
+      var mx=0;for(var k in counts){if(counts[k]>mx)mx=counts[k];}
+      cons.push(mx/nrows);
+    }
+    // Build ruler
+    var rulerHtml='';
+    for(var i=0;i<ncols;i++){
+      var label=(i+1)%10===0?String(i+1):(i+1)%5===0?'\u00B7':'';
+      rulerHtml+='<div class="aln-tick" style="width:'+CW+'px">'+label+'</div>';
+    }
+    // Build grid
+    var gridHtml='';
+    for(var r=0;r<nrows;r++){
+      var row='<div class="aln-row" data-aln-row="'+r+'">';
+      for(var c=0;c<ncols;c++){
+        var aa=aligned[r][c];
+        if(aa==='-'){row+='<div class="aln-cell gap" data-col="'+c+'">-</div>';}
+        else{var grp=colorMap[aa]||'';
+          var clr=grp?colors[grp]:'var(--text-dim)';
+          row+='<div class="aln-cell" data-col="'+c+'" data-aa="'+aa+'" data-grp="'+grp+'" style="color:'+clr+'">'+aa+'</div>';}
+      }
+      row+='</div>';gridHtml+=row;
+    }
+    // Conservation bars — color gradient: yellow (low) → orange → dark brown (high)
+    function consColor(v){
+      var cr,cg,cb;
+      if(v<=0.5){var t=v*2;cr=251+(217-251)*t;cg=191+(119-191)*t;cb=36+(6-36)*t;}
+      else{var t=(v-0.5)*2;cr=217+(107-217)*t;cg=119+(58-119)*t;cb=6+(0-6)*t;}
+      return 'rgb('+Math.round(cr)+','+Math.round(cg)+','+Math.round(cb)+')';
+    }
+    var consHtml='';
+    var scoreHtml='';
+    for(var c=0;c<ncols;c++){
+      var cv=cons[c];
+      var h=Math.max(1,Math.round(cv*CONS_H));
+      var clr=consColor(cv);
+      consHtml+='<div class="aln-cons-bar" style="height:'+h+'px;width:'+CW+'px;background:'+clr+'" data-cons="'+Math.round(cv*100)+'"></div>';
+      var digit=Math.min(9,Math.floor(cv*10));
+      scoreHtml+='<div class="aln-cons-digit" style="color:'+consColor(cv)+'">'+digit+'</div>';
+    }
+    // Names
+    var namesHtml='<div class="aln-name-spacer"></div>';
+    for(var r=0;r<nrows;r++){
+      namesHtml+='<div class="aln-name" data-aln-row="'+r+'" title="'+names[r]+'">'+names[r]+'</div>';
+    }
+    namesHtml+='<div class="aln-name-spacer-bottom"></div>';
+    namePanel.innerHTML=namesHtml;
+    scrollPanel.innerHTML='<div class="aln-ruler">'+rulerHtml+'</div>'
+      +'<div class="aln-grid">'+gridHtml+'</div>'
+      +'<div class="aln-conservation">'+consHtml+'</div>'
+      +'<div class="aln-cons-scores">'+scoreHtml+'</div>';
+    // CDR outline overlays
+    var gridEl=scrollPanel.querySelector('.aln-grid');
+    var gridH=nrows*ROW_H;
+    cdrSpans.forEach(function(sp){
+      var outline=document.createElement('div');
+      outline.className='aln-cdr-outline';
+      outline.dataset.region=sp.name;
+      outline.style.left=(sp.colStart*CW-1)+'px';
+      outline.style.top='-1px';
+      outline.style.width=((sp.colEnd-sp.colStart)*CW+1)+'px';
+      outline.style.height=(gridH+1)+'px';
+      gridEl.appendChild(outline);
+      var lbl=document.createElement('div');
+      lbl.className='aln-cdr-label';
+      lbl.dataset.region=sp.name;
+      lbl.textContent=sp.name;
+      lbl.style.left=(sp.colStart*CW+((sp.colEnd-sp.colStart)*CW)/2)+'px';
+      lbl.style.top=(-14)+'px';
+      lbl.style.transform='translateX(-50%)';
+      gridEl.appendChild(lbl);
+    });
+    // Row highlight on name hover
+    var allRows=scrollPanel.querySelectorAll('.aln-row');
+    namePanel.querySelectorAll('.aln-name').forEach(function(nm){
+      nm.addEventListener('mouseenter',function(){
+        var idx=parseInt(nm.dataset.alnRow);
+        allRows.forEach(function(row){row.classList.toggle('dimmed',parseInt(row.dataset.alnRow)!==idx);});
+      });
+      nm.addEventListener('mouseleave',function(){allRows.forEach(function(row){row.classList.remove('dimmed');});});
+    });
+    // Tooltip
+    scrollPanel.onmouseover=function(e){
+      var cell=e.target.closest('.aln-cell');
+      if(!cell){tip.style.display='none';return;}
+      var ci=parseInt(cell.dataset.col);
+      var aa=cell.dataset.aa||'-';
+      var reg=colRegion[ci]||'FR';
+      var cv=Math.round(cons[ci]*100);
+      tip.innerHTML='<b>'+aa+'</b> &middot; col '+(ci+1)+' &middot; '+reg+'<br>Conservation: '+cv+'%';
+      tip.style.display='block';
+    };
+    scrollPanel.onmousemove=function(e){
+      if(tip.style.display==='block'){tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY-10)+'px';}
+    };
+    scrollPanel.onmouseleave=function(){tip.style.display='none';};
+  }
+  // Initial render
+  var initCount=showSel?parseInt(showSel.value):Math.min(20,totalRows);
+  render(initCount);
+  // Dropdown change handler
+  if(showSel){
+    showSel.addEventListener('change',function(){render(parseInt(showSel.value));initCustomSelects();});
+  }
+  // Theme observer
+  new MutationObserver(function(){
+    cs=getComputedStyle(document.documentElement);colors=getColors();
+    scrollPanel.querySelectorAll('.aln-cell[data-grp]').forEach(function(cell){
+      var grp=cell.dataset.grp;if(grp&&colors[grp])cell.style.color=colors[grp];
+    });
+  }).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+  // FASTA download button
+  var fastaBtn=document.getElementById('aln-fasta-dl');
+  if(fastaBtn&&d.sequences){
+    fastaBtn.addEventListener('click',function(){
+      var lines=[];
+      for(var i=0;i<d.names.length;i++){
+        lines.push('>'+d.names[i]);
+        lines.push(d.sequences[i]);
+      }
+      var blob=new Blob([lines.join('\\n')+'\\n'],{type:'text/plain'});
+      var a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download='alignment_sequences.fasta';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+  }
+}
 document.addEventListener('DOMContentLoaded',()=>{initTabs();initTheme();initTableSort();initTableFilter();
   initCsvExport();initPcaCrosstalk();initPcaFilters();initFamilyGroupToggle();
-  initCustomSelects();initPhyloPagination();initXlExport();initClusterCrosstalk();initRoundPhyloCrosstalk();initPplCrosstalk();});
+  initCustomSelects();initPhyloPagination();initXlExport();initClusterCrosstalk();initRoundPhyloCrosstalk();initPplCrosstalk();initAlignmentViewer();});
 """
 
 DASHBOARD_PALETTE = ['#a78bfa','#06b6d4','#f97316','#34d399','#f87171',
@@ -3467,6 +3684,97 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
         chart_variant = _placeholder('&#x1F9EC;', 'Variant heatmap not available',
                                      'Requires >=2 variants in dominant family')
 
+    # ── Sequence alignment viewer data ──
+    # Region-based columnar layout: each region (FR1-FR4) gets its own
+    # fixed-width column section. CDR labels are correct by construction
+    # because columns map directly to annotated regions, not NW alignment.
+    alignment_script = ''
+    _region_order = ['FR1', 'CDR1', 'FR2', 'CDR2', 'FR3', 'CDR3', 'FR4']
+    _cdr_set = {'CDR1', 'CDR2', 'CDR3'}
+    if (not annotations.empty
+            and all(c in annotations.columns for c in _region_order)
+            and len(top_df) >= 2):
+        ann_good = annotations[annotations['annotation_quality'] == 'good'] if 'annotation_quality' in annotations.columns else annotations
+        ann_map = {}
+        for _, arow in ann_good.iterrows():
+            ann_map[arow['Sequence']] = arow
+        aln_names = []
+        aln_raw_seqs = []  # original full protein sequences for FASTA export
+        seq_regions = []  # list of dicts: region_name -> region_string
+        for _, trow in top_df.head(50).iterrows():
+            seq = trow['Sequence']
+            if seq not in ann_map:
+                continue
+            ar = ann_map[seq]
+            regs = {}
+            has_cdr = False
+            for rn in _region_order:
+                rval = str(ar.get(rn, '')) if pd.notna(ar.get(rn, '')) else ''
+                regs[rn] = rval
+                if rn in _cdr_set and rval:
+                    has_cdr = True
+            if not has_cdr:
+                continue
+            rank = trow.get('Rank', len(aln_names) + 1) if 'Rank' in trow.index else len(aln_names) + 1
+            fam = ar.get('clone_family', '')
+            label = f"Rank {rank}"
+            if pd.notna(fam) and fam:
+                label += f" ({fam})"
+            aln_names.append(label)
+            aln_raw_seqs.append(seq)
+            seq_regions.append(regs)
+
+        if len(aln_names) >= 2:
+            # Compute max width per region across all sequences
+            region_widths = {}
+            for rn in _region_order:
+                region_widths[rn] = max(len(sr[rn]) for sr in seq_regions)
+
+            # Pad each sequence's regions and concatenate
+            aligned = []
+            for sr in seq_regions:
+                parts = []
+                for rn in _region_order:
+                    rval = sr[rn]
+                    mw = region_widths[rn]
+                    if rn in _cdr_set:
+                        # Center-pad CDR regions
+                        total_pad = mw - len(rval)
+                        left_pad = total_pad // 2
+                        right_pad = total_pad - left_pad
+                        parts.append('-' * left_pad + rval + '-' * right_pad)
+                    else:
+                        # Right-pad FR regions
+                        parts.append(rval.ljust(mw, '-'))
+                aligned.append(''.join(parts))
+
+            # Build regions array from max widths
+            regions_info = [{'name': rn, 'len': region_widths[rn]}
+                            for rn in _region_order if region_widths[rn] > 0]
+
+            # Per-column conservation (gaps excluded — they represent
+            # absence, not a conserved residue)
+            total_len = len(aligned[0])
+            n_seqs = len(aligned)
+            conservation = []
+            for ci in range(total_len):
+                counts = {}
+                for row in aligned:
+                    aa = row[ci]
+                    if aa != '-':
+                        counts[aa] = counts.get(aa, 0) + 1
+                mx = max(counts.values()) if counts else 0
+                conservation.append(mx / n_seqs)
+
+            aln_data = {
+                'names': aln_names,
+                'sequences': aln_raw_seqs,
+                'aligned': aligned,
+                'regions': regions_info,
+                'conservation': [round(c, 3) for c in conservation],
+            }
+            alignment_script = f'<script>window.__alignmentData={json.dumps(aln_data)};</script>'
+
     # Enriched clusters: radial phylo tree + data table from clone_tracking
     cluster_tree_html = ''
     cluster_table_html = ''
@@ -3579,6 +3887,39 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
         {pca_filter_html}
         {chart_pca}
         {pca_table_html}
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Sequence Alignment</div>
+        {_legend("IMGT-style positional alignment of the top enriched VHH sequences. Each sequence is split into framework (FR) and complementarity-determining (CDR) regions, then padded per-region to equal length. Residues are colored by physicochemical property: <b>blue</b> = hydrophobic (A,I,L,M,V), <b>red</b> = positive (R,K,H), <b>purple</b> = negative (D,E), <b>green</b> = polar (S,T,N,Q), <b>orange</b> = aromatic (F,W,Y), <b>pink</b> = cysteine (C), <b>dark orange</b> = glycine (G), <b>yellow</b> = proline (P). The conservation bar shows the fraction of sequences sharing the most common residue at each position. CDR regions are highlighted in the region bar.")}
+        {alignment_script}
+        <div class="aln-viewer" id="aln-viewer">
+          <div class="aln-show-control">
+            <span>Show</span>
+            <select id="aln-show-count">
+              <option value="10">10</option>
+              <option value="20" selected>20</option>
+              <option value="30">30</option>
+              <option value="50">50</option>
+            </select>
+            <span>sequences</span>
+            <button class="btn-export" id="aln-fasta-dl">FASTA</button>
+          </div>
+          <div class="aln-color-key">
+            <div class="aln-key-item"><span class="aln-key-swatch" style="background:var(--aln-hydrophobic)"></span>Hydrophobic</div>
+            <div class="aln-key-item"><span class="aln-key-swatch" style="background:var(--aln-positive)"></span>Positive</div>
+            <div class="aln-key-item"><span class="aln-key-swatch" style="background:var(--aln-negative)"></span>Negative</div>
+            <div class="aln-key-item"><span class="aln-key-swatch" style="background:var(--aln-polar)"></span>Polar</div>
+            <div class="aln-key-item"><span class="aln-key-swatch" style="background:var(--aln-aromatic)"></span>Aromatic</div>
+            <div class="aln-key-item"><span class="aln-key-swatch" style="background:var(--aln-cysteine)"></span>Cysteine</div>
+            <div class="aln-key-item"><span class="aln-key-swatch" style="background:var(--aln-glycine)"></span>Glycine</div>
+            <div class="aln-key-item"><span class="aln-key-swatch" style="background:var(--aln-proline)"></span>Proline</div>
+          </div>
+          <div class="aln-container">
+            <div class="aln-names"></div>
+            <div class="aln-scroll"></div>
+          </div>
+        </div>
+        <div class="aln-tooltip" id="aln-tooltip"></div>
       </div>
       <div class="chart-card">
         <div class="chart-title">Enriched Clusters</div>

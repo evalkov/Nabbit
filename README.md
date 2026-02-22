@@ -209,7 +209,7 @@ The pipeline generates `dashboard.html` with 5 tabs:
 - **Overview** — Read counts, productivity funnel, per-round phylogenetic trees
 - **Enrichment** — Trajectories, volcano plot, top sequence detail, sortable table
 - **Diversity** — Shannon/dominance, convergence heatmap, saturation curves, clone family dynamics
-- **Clusters** — CDR3 length analysis, PCA, enriched cluster trees, variant heatmap
+- **Clusters** — CDR3 length analysis, PCA, enriched cluster trees, variant heatmap, IMGT region-based sequence alignment viewer with physicochemical coloring, conservation bars, and FASTA export
 - **Scoring** — AbLang PPL vs enrichment, V/D/J gene usage (when `--ablang` or `--igblast` enabled)
 
 Each chart includes an expandable figure legend explaining how to interpret the visualization.
