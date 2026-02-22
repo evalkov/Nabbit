@@ -1982,21 +1982,21 @@ function initClusterCrosstalk(){
   const lineageData=window.__clusterLineage||{};
   let pinnedCidx=null;
   let baseSizes=null;
-  const defaultColor='#f4a58a';const defaultEdgeColor='#e07050';
+  let baseColors=null;
   const accentColor=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#a78bfa';
-  function storeBaseSizes(){
-    if(!baseSizes&&treeDiv.data&&treeDiv.data.length>1){
-      const s=treeDiv.data[1].marker.size;
-      baseSizes=Array.isArray(s)?s.slice():[];
+  function storeBase(){
+    if(treeDiv.data&&treeDiv.data.length>1){
+      if(!baseSizes){const s=treeDiv.data[1].marker.size;baseSizes=Array.isArray(s)?s.slice():[];}
+      if(!baseColors){const c=treeDiv.data[1].marker.color;baseColors=Array.isArray(c)?c.slice():[];}
     }
   }
   function clearTree(){
     if(treeDiv.data&&treeDiv.data.length>1){
-      storeBaseSizes();
+      storeBase();
       const n=treeDiv.data[1].x.length;
-      Plotly.restyle(treeDiv,{'marker.color':[Array(n).fill(defaultColor)],
+      Plotly.restyle(treeDiv,{'marker.color':[baseColors||Array(n).fill('#f4a58a')],
         'marker.size':[baseSizes||treeDiv.data[1].marker.size],
-        'marker.line.color':[Array(n).fill(defaultEdgeColor)]},1);
+        'marker.line.color':[Array(n).fill('rgba(0,0,0,0.15)')]},1);
     }
     while(treeDiv.data&&treeDiv.data.length>2){
       Plotly.deleteTraces(treeDiv,treeDiv.data.length-1);
@@ -2006,7 +2006,7 @@ function initClusterCrosstalk(){
     clTable.querySelectorAll('tbody tr.cluster-highlight').forEach(r=>r.classList.remove('cluster-highlight'));
   }
   function showHighlight(cidx){
-    storeBaseSizes();
+    storeBase();
     // Highlight table row
     clTable.querySelectorAll('tbody tr').forEach(r=>{
       if(r.dataset.cidx===String(cidx))r.classList.add('cluster-highlight');
@@ -2014,16 +2014,17 @@ function initClusterCrosstalk(){
     // Highlight tree node
     if(treeDiv.data&&treeDiv.data.length>1){
       const cd=treeDiv.data[1].customdata||[];
-      const colors=cd.map(v=>v===cidx?accentColor:defaultColor);
+      const bc=baseColors||[];
+      const colors=cd.map((v,j)=>v===cidx?accentColor:(bc[j]||'#f4a58a'));
       const sizes=(baseSizes||[]).map((s,j)=>cd[j]===cidx?Math.max(s+6,14):s);
-      const ec=cd.map(v=>v===cidx?accentColor:defaultEdgeColor);
+      const ec=cd.map(v=>v===cidx?accentColor:'rgba(0,0,0,0.15)');
       Plotly.restyle(treeDiv,{'marker.color':[colors],'marker.size':[sizes],'marker.line.color':[ec]},1);
     }
-    // Draw lineage path
+    // Draw lineage path (polyline segments)
     const segs=lineageData[cidx];
     if(segs&&segs.length){
       const lx=[],ly=[];
-      segs.forEach(s=>{lx.push(s[0],s[2],null);ly.push(s[1],s[3],null);});
+      segs.forEach(s=>{s.forEach(p=>{lx.push(p[0]);ly.push(p[1]);});lx.push(null);ly.push(null);});
       Plotly.addTraces(treeDiv,{x:lx,y:ly,mode:'lines',
         line:{color:accentColor,width:3},showlegend:false,hoverinfo:'skip'});
     }
@@ -2128,7 +2129,7 @@ function initRoundPhyloCrosstalk(){
       const segs=lineageData[lidx];
       if(segs&&segs.length){
         const lx=[],ly=[];
-        segs.forEach(s=>{lx.push(s[0],s[2],null);ly.push(s[1],s[3],null);});
+        segs.forEach(s=>{s.forEach(p=>{lx.push(p[0]);ly.push(p[1]);});lx.push(null);ly.push(null);});
         Plotly.addTraces(treeDiv,{x:lx,y:ly,mode:'lines',
           line:{color:accentColor,width:3},showlegend:false,hoverinfo:'skip'});
       }
@@ -2180,6 +2181,101 @@ function initRoundPhyloCrosstalk(){
       const row=clTable.querySelector('tbody tr[data-lidx="'+lidx+'"]');
       if(row)row.scrollIntoView({behavior:'smooth',block:'nearest'});
     });
+  });
+}
+function initPplCrosstalk(){
+  const pplDiv=document.getElementById('chart_ppl');
+  const pplTable=document.getElementById('ppl-table');
+  if(!pplDiv||!pplTable)return;
+  const accentColor=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#a78bfa';
+  let pinnedIdx=null;
+  let baseColors=null;let baseSizes=null;let baseEdgeColors=null;
+  function storeBase(){
+    if(!baseColors&&pplDiv.data){
+      baseColors=[];baseSizes=[];baseEdgeColors=[];
+      for(let i=0;i<pplDiv.data.length;i++){
+        const m=pplDiv.data[i].marker||{};
+        const c=m.color;baseColors.push(Array.isArray(c)?c.slice():c);
+        const s=m.size;baseSizes.push(Array.isArray(s)?s.slice():s);
+        const ec=m.line?m.line.color:null;baseEdgeColors.push(Array.isArray(ec)?ec.slice():ec);
+      }
+    }
+  }
+  function clearAll(){
+    pplTable.querySelectorAll('tbody tr.cluster-highlight').forEach(r=>r.classList.remove('cluster-highlight'));
+    storeBase();
+    if(pplDiv.data){
+      for(let i=0;i<pplDiv.data.length;i++){
+        const n=(pplDiv.data[i].x||[]).length;
+        const bc=baseColors[i];const bs=baseSizes[i];const bec=baseEdgeColors[i];
+        Plotly.restyle(pplDiv,{
+          'marker.color':[Array.isArray(bc)?bc:Array(n).fill(bc)],
+          'marker.size':[Array.isArray(bs)?bs:Array(n).fill(bs)],
+          'marker.line.color':[Array.isArray(bec)?bec:Array(n).fill(bec||'black')]
+        },i);
+      }
+    }
+  }
+  function showHighlight(pidx){
+    storeBase();
+    pplTable.querySelectorAll('tbody tr').forEach(r=>{
+      if(r.dataset.pidx===String(pidx))r.classList.add('cluster-highlight');
+    });
+    if(pplDiv.data){
+      for(let i=0;i<pplDiv.data.length;i++){
+        const cd=pplDiv.data[i].customdata||[];
+        const bc=baseColors[i];const bs=baseSizes[i];
+        const defC=Array.isArray(bc)?bc[0]:bc;
+        const defS=Array.isArray(bs)?bs[0]:(bs||8);
+        const colors=cd.map((v,j)=>v===pidx?accentColor:(Array.isArray(bc)?bc[j]:defC));
+        const sizes=cd.map((v,j)=>v===pidx?Math.max((Array.isArray(bs)?bs[j]:defS)+4,14):(Array.isArray(bs)?bs[j]:defS));
+        const ec=cd.map(v=>v===pidx?accentColor:'black');
+        Plotly.restyle(pplDiv,{'marker.color':[colors],'marker.size':[sizes],'marker.line.color':[ec]},i);
+      }
+    }
+  }
+  // Chart hover → table
+  pplDiv.on('plotly_hover',function(evtData){
+    if(pinnedIdx!==null)return;
+    if(!evtData||!evtData.points||!evtData.points.length)return;
+    const pidx=evtData.points[0].customdata;
+    if(pidx===undefined||pidx===null)return;
+    clearAll();showHighlight(pidx);
+    const row=pplTable.querySelector('tbody tr[data-pidx="'+pidx+'"]');
+    if(row)row.scrollIntoView({behavior:'smooth',block:'nearest'});
+  });
+  pplDiv.on('plotly_unhover',function(){
+    if(pinnedIdx!==null)return;
+    clearAll();
+  });
+  // Chart click → pin
+  pplDiv.on('plotly_click',function(evtData){
+    if(!evtData||!evtData.points||!evtData.points.length)return;
+    const pidx=evtData.points[0].customdata;
+    if(pidx===undefined||pidx===null)return;
+    if(pinnedIdx===pidx){pinnedIdx=null;clearAll();return;}
+    pinnedIdx=pidx;clearAll();showHighlight(pidx);
+    const row=pplTable.querySelector('tbody tr[data-pidx="'+pidx+'"]');
+    if(row)row.scrollIntoView({behavior:'smooth',block:'nearest'});
+  });
+  // Table hover → chart
+  pplTable.querySelector('tbody').addEventListener('mouseenter',function(e){
+    const row=e.target.closest('tr');
+    if(!row||row.dataset.pidx===undefined||pinnedIdx!==null)return;
+    clearAll();showHighlight(parseInt(row.dataset.pidx));
+  },true);
+  pplTable.querySelector('tbody').addEventListener('mouseleave',function(e){
+    const row=e.target.closest('tr');
+    if(!row||pinnedIdx!==null)return;
+    clearAll();
+  },true);
+  // Table click → pin
+  pplTable.querySelector('tbody').addEventListener('click',function(e){
+    const row=e.target.closest('tr');
+    if(!row||row.dataset.pidx===undefined)return;
+    const pidx=parseInt(row.dataset.pidx);
+    if(pinnedIdx===pidx){pinnedIdx=null;clearAll();return;}
+    pinnedIdx=pidx;clearAll();showHighlight(pidx);
   });
 }
 function initPcaFilters(){
@@ -2317,7 +2413,7 @@ function initXlExport(){
 }
 document.addEventListener('DOMContentLoaded',()=>{initTabs();initTheme();initTableSort();initTableFilter();
   initCsvExport();initPcaCrosstalk();initPcaFilters();initFamilyGroupToggle();
-  initPhyloPagination();initXlExport();initClusterCrosstalk();initRoundPhyloCrosstalk();});
+  initPhyloPagination();initXlExport();initClusterCrosstalk();initRoundPhyloCrosstalk();initPplCrosstalk();});
 """
 
 DASHBOARD_PALETTE = ['#a78bfa','#06b6d4','#f97316','#34d399','#f87171',
@@ -2376,8 +2472,9 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
     def _radial_layout(tree):
         """Equal-angle radial layout for a phylogenetic tree.
         Returns (positions, edges, lineages) where positions maps clade key to (x, y),
-        edges is list of ((x1,y1), (x2,y2)) coordinate pairs, and lineages maps each
-        leaf key to the list of edge indices forming its root-to-leaf path."""
+        edges is list of [(x,y), ...] polyline point lists (arc + radial elbow edges),
+        and lineages maps each leaf key to the list of edge indices forming its
+        root-to-leaf path."""
         import math
 
         def count_terminals(clade):
@@ -2386,6 +2483,7 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
             return sum(count_terminals(c) for c in clade.clades)
 
         positions = {}
+        polar = {}  # clade_key -> (angle, radius)
         edges = []
         # Track parent relationship for lineage reconstruction
         parent_map = {}  # clade_key -> parent_clade_key
@@ -2399,6 +2497,7 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
             x = math.cos(angle_mid) * radius
             y = math.sin(angle_mid) * radius
             positions[_key(clade)] = (x, y)
+            polar[_key(clade)] = (angle_mid, radius)
             if clade.is_terminal():
                 return
             n_leaves = count_terminals(clade)
@@ -2409,8 +2508,23 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
                 bl = child.branch_length if child.branch_length and child.branch_length > 0 else 0.01
                 child_radius = radius + bl
                 layout(child, cur, cur + child_span, child_radius)
+                # Build elbow edge: arc at parent radius, then radial to child
+                p_angle = angle_mid
+                c_angle, _ = polar[_key(child)]
+                pts = []
+                # Arc from parent angle to child angle at parent radius
+                if radius > 1e-9:
+                    n_arc = 20
+                    for k in range(n_arc + 1):
+                        t = k / n_arc
+                        a = p_angle + t * (c_angle - p_angle)
+                        pts.append((math.cos(a) * radius, math.sin(a) * radius))
+                else:
+                    pts.append((x, y))
+                # Radial line to child position
+                pts.append(positions[_key(child)])
                 edge_idx = len(edges)
-                edges.append(((x, y), positions[_key(child)]))
+                edges.append(pts)
                 parent_map[_key(child)] = _key(clade)
                 edge_lookup[(_key(clade), _key(child))] = edge_idx
                 cur += child_span
@@ -2471,11 +2585,14 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
 
         fig = go.Figure()
 
-        # Single edge trace with None separators
+        # Single edge trace with None separators (elbow polylines)
         edge_x, edge_y = [], []
-        for (x1, y1), (x2, y2) in edges:
-            edge_x.extend([x1, x2, None])
-            edge_y.extend([y1, y2, None])
+        for pts in edges:
+            for (px, py) in pts:
+                edge_x.append(px)
+                edge_y.append(py)
+            edge_x.append(None)
+            edge_y.append(None)
         fig.add_trace(go.Scatter(
             x=edge_x, y=edge_y, mode='lines',
             line=dict(color='#9ca3af', width=1),
@@ -2515,7 +2632,7 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
             xaxis=dict(visible=False), yaxis=dict(visible=False, scaleanchor='x'),
             height=520, margin=dict(l=10, r=10, t=10, b=10)))
 
-        # Build lineage edge coordinate dict for JS crosstalk
+        # Build lineage edge coordinate dict for JS crosstalk (polyline points)
         import json as _json
         lineage_edges = {}
         for i, sid in enumerate(id_to_seq.keys()):
@@ -2523,33 +2640,52 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
             if edge_idxs:
                 coords = []
                 for eidx in edge_idxs:
-                    (x1, y1), (x2, y2) = edges[eidx]
-                    coords.append([round(x1, 6), round(y1, 6), round(x2, 6), round(y2, 6)])
+                    coords.append([[round(px, 6), round(py, 6)] for px, py in edges[eidx]])
                 lineage_edges[i] = coords
         lineage_json = _json.dumps(lineage_edges)
 
         return fig, lineage_json
 
+    def _log2fc_color(val, vmin, vmax):
+        """Map a log2fc value to a color on a 3-stop gradient:
+        #2d0a1e (dark) → #8b2252 (mid) → #e83e8c (bright pink)."""
+        if vmax <= vmin:
+            return 'rgb(139,34,82)'
+        t = max(0.0, min(1.0, (val - vmin) / (vmax - vmin)))
+        stops = [(0x2d, 0x0a, 0x1e), (0x8b, 0x22, 0x52), (0xe8, 0x3e, 0x8c)]
+        if t <= 0.5:
+            s = t * 2
+            r = int(stops[0][0] + s * (stops[1][0] - stops[0][0]))
+            g = int(stops[0][1] + s * (stops[1][1] - stops[0][1]))
+            b = int(stops[0][2] + s * (stops[1][2] - stops[0][2]))
+        else:
+            s = (t - 0.5) * 2
+            r = int(stops[1][0] + s * (stops[2][0] - stops[1][0]))
+            g = int(stops[1][1] + s * (stops[2][1] - stops[1][1]))
+            b = int(stops[1][2] + s * (stops[2][2] - stops[1][2]))
+        return f'rgb({r},{g},{b})'
+
     def _build_cluster_phylo(cluster_df, annotations_df, rounds_data_dict, round_names_list, max_clusters=100):
         """Build a radial NJ tree of top enriched cluster leads using Gonnet matrix.
-        Returns (fig, matrix_name, lineage_json, family_to_idx) or (None, None, None, None)."""
+        Returns (fig, matrix_name, lineage_json, family_to_idx, l2fc_range) or
+        (None, None, None, None, None)."""
         try:
             from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
             from Bio.Align import MultipleSeqAlignment
             from Bio.Seq import Seq
             from Bio.SeqRecord import SeqRecord
         except ImportError:
-            return None, None, None, None
+            return None, None, None, None, None
 
         if cluster_df is None or cluster_df.empty:
-            return None, None, None, None
+            return None, None, None, None, None
 
         # Get top clusters sorted by last-round CPM
         last_rnd = round_names_list[-1]
         last_cpm_key = f'{last_rnd}_cpm'
         top_cl = cluster_df.head(max_clusters).copy()
         if len(top_cl) < 3:
-            return None, None, None, None
+            return None, None, None, None, None
 
         # Map family → representative full protein sequence (prefer full seq over CDR3)
         fam_to_seq = {}
@@ -2561,7 +2697,7 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
 
         # Build sequence list; fall back to CDR3 if no full sequence
         seq_list = []
-        meta = []  # (family, cdr3, last_cpm, cluster_size)
+        meta = []  # (family, cdr3, last_cpm, cluster_size, log2fc)
         family_sizes = annotations_df.groupby('clone_family').size().to_dict() if not annotations_df.empty else {}
         for _, row in top_cl.iterrows():
             fam = row['clone_family']
@@ -2571,11 +2707,12 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
                 continue
             cpm = row.get(last_cpm_key, 0)
             size = family_sizes.get(fam, 1)
+            l2fc = float(row.get('log2fc', 0))
             seq_list.append(seq)
-            meta.append((fam, cdr3, float(cpm), int(size)))
+            meta.append((fam, cdr3, float(cpm), int(size), l2fc))
 
         if len(seq_list) < 3:
-            return None, None, None, None
+            return None, None, None, None, None
 
         # Pad to equal length and build MSA
         max_len = max(len(s) for s in seq_list)
@@ -2603,20 +2740,28 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
 
         fig = go.Figure()
 
-        # Edges
+        # Edges (elbow polylines)
         edge_x, edge_y = [], []
-        for (x1, y1), (x2, y2) in edges:
-            edge_x.extend([x1, x2, None])
-            edge_y.extend([y1, y2, None])
+        for pts in edges:
+            for (px, py) in pts:
+                edge_x.append(px)
+                edge_y.append(py)
+            edge_x.append(None)
+            edge_y.append(None)
         fig.add_trace(go.Scatter(
             x=edge_x, y=edge_y, mode='lines',
             line=dict(color='#9ca3af', width=1),
             showlegend=False, hoverinfo='skip'))
 
+        # Compute log2fc color range across all leaves
+        all_l2fc = [m[4] for m in meta]
+        l2fc_min, l2fc_max = min(all_l2fc), max(all_l2fc)
+
         # Leaf nodes — track customdata (leaf index) for JS crosstalk
         leaf_x, leaf_y, leaf_sizes, leaf_hover, leaf_customdata = [], [], [], [], []
+        leaf_colors = []
         leaf_idx_map = {}  # maps sequential leaf position → meta index i
-        for i, (fam, cdr3, cpm, size) in enumerate(meta):
+        for i, (fam, cdr3, cpm, size, l2fc) in enumerate(meta):
             sid = f"c{i}"
             if sid not in positions:
                 continue
@@ -2628,14 +2773,16 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
             sz = max(4, min(35, (log_cpm - 2.5) * 12))
             leaf_sizes.append(sz)
             leaf_customdata.append(i)
+            leaf_colors.append(_log2fc_color(l2fc, l2fc_min, l2fc_max))
             leaf_hover.append(
                 f'CDR3: {cdr3}<br>Family: {fam}<br>'
-                f'CPM: {cpm:,.0f}<br>Cluster size: {size}')
+                f'CPM: {cpm:,.0f}<br>Cluster size: {size}<br>'
+                f'Log2FC: {l2fc:.2f}')
 
         fig.add_trace(go.Scatter(
             x=leaf_x, y=leaf_y, mode='markers',
-            marker=dict(size=leaf_sizes, color='#f4a58a', opacity=0.85,
-                        line=dict(color='#e07050', width=1)),
+            marker=dict(size=leaf_sizes, color=leaf_colors, opacity=0.85,
+                        line=dict(color='rgba(0,0,0,0.15)', width=1)),
             customdata=leaf_customdata,
             text=leaf_hover, hoverinfo='text', showlegend=False))
 
@@ -2643,24 +2790,23 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
             xaxis=dict(visible=False), yaxis=dict(visible=False, scaleanchor='x'),
             height=560, margin=dict(l=10, r=10, t=10, b=10)))
 
-        # Build lineage edge coordinate dict for JS crosstalk
+        # Build lineage edge coordinate dict for JS crosstalk (polyline points)
         import json as _json
         lineage_edges = {}
-        for i, (fam, cdr3, cpm, size) in enumerate(meta):
+        for i, (fam, cdr3, cpm, size, l2fc) in enumerate(meta):
             sid = f"c{i}"
             edge_idxs = lineages.get(sid, [])
             if edge_idxs:
                 coords = []
                 for eidx in edge_idxs:
-                    (x1, y1), (x2, y2) = edges[eidx]
-                    coords.append([round(x1, 6), round(y1, 6), round(x2, 6), round(y2, 6)])
+                    coords.append([[round(px, 6), round(py, 6)] for px, py in edges[eidx]])
                 lineage_edges[i] = coords
         lineage_json = _json.dumps(lineage_edges)
 
         # Map family name → meta index for table row tagging
-        family_to_idx = {fam: i for i, (fam, _, _, _) in enumerate(meta)}
+        family_to_idx = {fam: i for i, (fam, _, _, _, _) in enumerate(meta)}
 
-        return fig, matrix_used, lineage_json, family_to_idx
+        return fig, matrix_used, lineage_json, family_to_idx, (l2fc_min, l2fc_max)
 
     # ── Tab 1: Overview ──────────────────────────────────────────────────
 
@@ -3148,17 +3294,26 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
                 f'<td>{is_top}</td></tr>')
         pca_th = ''.join(f'<th>{c}<span class="sort-arrow">&#x25B2;</span></th>'
                          for c in ['Rank','CDR3','Family','CPM','Log2FC','Top 100'])
-        pca_table_html = f'''
+        pca_table_html = f'''<div class="phylo-paginated">
         <div class="table-controls">
-          <input type="text" class="table-search" data-table="pca-table" placeholder="Search PCA table...">
+          <input type="text" class="phylo-search" placeholder="Search PCA table...">
           <button class="btn-export" data-table="pca-table">CSV</button>
           <button class="btn-export-xl" data-table="pca-table">Excel</button>
+          <span class="phylo-entries-bar">Show
+            <select class="phylo-page-size"><option value="10" selected>10</option>
+              <option value="25">25</option><option value="50">50</option>
+              <option value="100">100</option></select> entries</span>
         </div>
-        <div style="overflow-x:auto;max-height:400px;overflow-y:auto">
+        <div style="overflow-x:auto">
         <table class="enrich-table" id="pca-table">
           <thead><tr>{pca_th}</tr></thead>
           <tbody>{''.join(pca_rows)}</tbody>
-        </table></div>'''
+        </table></div>
+        <div class="phylo-page-controls">
+          <div class="phylo-page-info"></div>
+          <div class="phylo-page-nav"></div>
+        </div>
+        </div>'''
     if not chart_pca:
         chart_pca = _placeholder('&#x1F52C;', 'PCA not available', 'Requires: biopython, scikit-learn')
 
@@ -3213,18 +3368,30 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
         # ── Radial tree of top 100 enriched clusters ──
         cl_fam_to_idx = {}
         try:
-            cl_fig, cl_matrix, cl_lineage_json, cl_fam_to_idx_ret = _build_cluster_phylo(
+            cl_fig, cl_matrix, cl_lineage_json, cl_fam_to_idx_ret, cl_l2fc_range = _build_cluster_phylo(
                 clone_tracking, annotations, rounds_data, round_names, max_clusters=100)
             if cl_fam_to_idx_ret:
                 cl_fam_to_idx = cl_fam_to_idx_ret
             if cl_fig is not None:
                 cl_subtitle = f'using {cl_matrix}'
                 lineage_script = f'<script>window.__clusterLineage={cl_lineage_json};</script>'
+                # Log2FC color bar legend
+                l2fc_lo, l2fc_hi = cl_l2fc_range if cl_l2fc_range else (0, 0)
+                l2fc_bar_html = (
+                    f'<div class="phylo-legend" style="margin-top:6px">'
+                    f'<span class="phylo-legend-label">Log2FC:</span>'
+                    f'<span style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">{l2fc_lo:.1f}</span>'
+                    f'<span style="display:inline-block;width:120px;height:12px;border-radius:4px;'
+                    f'background:linear-gradient(to right,#2d0a1e,#8b2252,#e83e8c);'
+                    f'vertical-align:middle;margin:0 4px"></span>'
+                    f'<span style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">{l2fc_hi:.1f}</span>'
+                    f'</div>')
                 cluster_tree_html = (
                     f'<div style="color:var(--text-dim);font-size:12px;font-family:var(--mono);'
                     f'margin-bottom:4px">{cl_subtitle}</div>'
                     f'{_legend_html}'
                     f'{_to_div(cl_fig, "chart_cluster_phylo")}'
+                    f'{l2fc_bar_html}'
                     f'{lineage_script}')
             else:
                 cluster_tree_html = _placeholder(
@@ -3239,7 +3406,17 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
         ct_rows = ''
         for _, crow in clone_tracking.iterrows():
             fam = crow['clone_family']
-            cdr3 = crow.get('representative_CDR3', '')
+            cdr3_raw = crow.get('representative_CDR3', '')
+            cdr3 = str(cdr3_raw) if pd.notna(cdr3_raw) and cdr3_raw != '' else ''
+            # Fall back to truncated sequence when CDR3 annotation is empty
+            if not cdr3:
+                if not annotations.empty:
+                    fam_rows = annotations[annotations['clone_family'] == fam]
+                    if not fam_rows.empty:
+                        seq = str(fam_rows.iloc[0]['Sequence'])
+                        cdr3 = (seq[:20] + '\u2026') if len(seq) > 20 else seq
+                if not cdr3:
+                    cdr3 = fam
             size = family_sizes.get(fam, 1)
             cidx = cl_fam_to_idx.get(fam)
             cidx_attr = f' data-cidx="{cidx}"' if cidx is not None else ''
@@ -3310,11 +3487,15 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
     show_scoring = has_ablang or has_igblast
 
     chart_ppl = ''
+    ppl_table_html = ''
     if has_ablang and len(top_df) > 0 and fold_col in top_df.columns:
         merged_ab = top_df.merge(ablang_df, on='Sequence', how='inner')
         if not merged_ab.empty:
             fam_map = dict(zip(annotations['Sequence'], annotations['clone_family']))
+            cdr3_map = dict(zip(annotations['Sequence'], annotations['CDR3'])) if not annotations.empty and 'CDR3' in annotations.columns else {}
             merged_ab['clone_family'] = merged_ab['Sequence'].map(fam_map).fillna('unknown')
+            merged_ab['CDR3'] = merged_ab['Sequence'].map(cdr3_map).fillna('')
+            merged_ab = merged_ab.reset_index(drop=True)
             fig_ppl = go.Figure()
             families = merged_ab['clone_family'].unique()
             for idx_f, fam in enumerate(families):
@@ -3322,6 +3503,7 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
                 fig_ppl.add_trace(go.Scatter(
                     x=sub[fold_col].tolist(), y=sub['ablang_pseudo_ppl'].tolist(),
                     mode='markers', name=fam if len(families) <= 10 else None,
+                    customdata=sub.index.tolist(),
                     marker=dict(size=8, color=DASHBOARD_PALETTE[idx_f % 10], opacity=0.7,
                                 line=dict(width=0.5, color='black')),
                     hovertemplate=f'{fam}<br>Fold: %{{x:.1f}}<br>PPL: %{{y:.3f}}<extra></extra>'))
@@ -3329,6 +3511,47 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
                                   yaxis_title='AbLang Pseudo-PPL',
                                   xaxis_type='log', showlegend=len(families) <= 10))
             chart_ppl = _to_div(fig_ppl, 'chart_ppl')
+
+            # Build PPL table
+            ppl_rows = ''
+            for pidx, prow in merged_ab.iterrows():
+                cdr3 = str(prow.get('CDR3', ''))[:15]
+                fam = str(prow.get('clone_family', ''))
+                fold = float(prow.get(fold_col, 0))
+                ppl = float(prow.get('ablang_pseudo_ppl', 0))
+                mean_p = float(prow.get('ablang_mean_prob', 0))
+                cpm = float(prow.get(last_cpm_col, 0)) if last_cpm_col in prow.index else 0
+                fold_str = f'{fold:.2f}' if not np.isinf(fold) else 'de novo'
+                fold_val = fold if not np.isinf(fold) else 1e9
+                ppl_rows += (f'<tr data-pidx="{pidx}">'
+                             f'<td title="{cdr3}">{cdr3}</td>'
+                             f'<td>{fam}</td>'
+                             f'<td data-val="{fold_val:.2f}">{fold_str}</td>'
+                             f'<td data-val="{ppl:.4f}">{ppl:.3f}</td>'
+                             f'<td data-val="{mean_p:.4f}">{mean_p:.3f}</td>'
+                             f'<td data-val="{cpm:.2f}">{cpm:,.0f}</td></tr>')
+            ppl_th = ''.join(f'<th>{h}<span class="sort-arrow">&#x25B2;</span></th>'
+                             for h in ['CDR3', 'Family', 'Fold', 'PPL', 'Mean Prob', 'CPM'])
+            ppl_table_html = f'''<div class="phylo-paginated">
+              <div class="table-controls">
+                <input type="text" class="phylo-search" placeholder="Search...">
+                <button class="btn-export" data-table="ppl-table">CSV</button>
+                <button class="btn-export-xl" data-table="ppl-table">Excel</button>
+                <span class="phylo-entries-bar">Show
+                  <select class="phylo-page-size"><option value="10" selected>10</option>
+                    <option value="25">25</option><option value="50">50</option>
+                    <option value="100">100</option></select> entries</span>
+              </div>
+              <div style="overflow-x:auto">
+              <table class="enrich-table" id="ppl-table">
+                <thead><tr>{ppl_th}</tr></thead>
+                <tbody>{ppl_rows}</tbody>
+              </table></div>
+              <div class="phylo-page-controls">
+                <div class="phylo-page-info"></div>
+                <div class="phylo-page-nav"></div>
+              </div>
+            </div>'''
     if not chart_ppl:
         chart_ppl = _placeholder('&#x1F9EA;', 'AbLang data not available', 'Run with --ablang flag')
 
@@ -3353,10 +3576,13 @@ def generate_dashboard(top_df, diversity_df, rounds_data, annotations, output_di
     if show_scoring:
         tab5_html = f'''
         <div id="tab-scoring" class="tab-content">
-          <div class="chart-row">
-            <div class="chart-card"><div class="chart-title">PPL vs Enrichment</div>{_legend("Scatter plot of AbLang pseudo-perplexity (y-axis) versus enrichment fold (x-axis), colored by clone family. AbLang PPL measures how &quot;antibody-like&quot; a sequence is \u2014 lower PPL means the sequence better matches natural antibody language patterns. Ideal candidates appear in the bottom-right: highly enriched and predicted to be well-folded. High PPL outliers may have unusual frameworks or mutations that warrant inspection.")}{chart_ppl}</div>
-            <div class="chart-card"><div class="chart-title">V/D/J Gene Usage</div>{_legend("Horizontal bar charts showing the percentage usage of germline V, D, and J gene segments among annotated sequences. Dominant V genes indicate the germline framework most compatible with binding. Comparing gene usage to the naive library can reveal germline-level selection biases introduced by panning.")}{chart_gene}</div>
+          <div class="chart-card">
+            <div class="chart-title">PPL vs Enrichment</div>
+            {_legend("Scatter plot of AbLang pseudo-perplexity (y-axis) versus enrichment fold (x-axis), colored by clone family. AbLang PPL measures how &quot;antibody-like&quot; a sequence is \u2014 lower PPL means the sequence better matches natural antibody language patterns. Ideal candidates appear in the bottom-right: highly enriched and predicted to be well-folded. High PPL outliers may have unusual frameworks or mutations that warrant inspection.")}
+            {chart_ppl}
+            {ppl_table_html}
           </div>
+          <div class="chart-card"><div class="chart-title">V/D/J Gene Usage</div>{_legend("Horizontal bar charts showing the percentage usage of germline V, D, and J gene segments among annotated sequences. Dominant V genes indicate the germline framework most compatible with binding. Comparing gene usage to the naive library can reveal germline-level selection biases introduced by panning.")}{chart_gene}</div>
         </div>'''
 
     # ── Tab 6: Methods (always shown) ───────────────────────────────────
